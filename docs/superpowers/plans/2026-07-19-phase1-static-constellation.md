@@ -6,7 +6,7 @@
 
 **Architecture:** A build pipeline (Node + Python) reads the 2010 archive read-only and emits static assets (`public/data/*.json`, responsive images, a sprite atlas, 365 prerendered HTML pages). A Vite + TypeScript + Three.js single-page app renders the constellation from those assets. No backend.
 
-**Tech Stack:** Node ≥20, sharp, Vite 5, TypeScript 5, Three.js (r160+), vitest; Python 3.11+, Pillow, numpy, scikit-learn, umap-learn, pytest.
+**Tech Stack:** Node ≥20, sharp, Vite (current stable), TypeScript (current stable), Three.js (r160+), vitest; Python 3.11+, Pillow, numpy, scikit-learn, umap-learn, pytest. Install commands in this plan are intentionally unpinned — use whatever `npm install` resolves as current at implementation time; the only hard floor is Three.js r160+.
 
 ## Global Constraints
 
