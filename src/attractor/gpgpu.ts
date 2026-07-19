@@ -67,6 +67,51 @@ function computeShader(family: AttractorFamily): string {
   `;
 }
 
+// Optional replacement for the default "near-identical random points clustered near the
+// origin" initial seeding (see fillSeedTexture below). Slow-mixing systems (small dt, or
+// attractors whose nearby trajectories take a long time to decorrelate from each other) only
+// visually "fill in" their true shape as fast as the whole ~1M-point cloud's own mixing
+// timescale when seeded from near-identical starts — for some days that's minutes of wall-clock
+// viewing time (see .superpowers/sdd/task-11.5-report.md). Seeding instead from a diverse set of
+// REAL points already sampled along one long, cheap, CPU-computed trajectory (see
+// piece.ts's estimate*Display functions) sidesteps that: a single ergodic trajectory naturally
+// visits the attractor's true shape, so replicating (with light jitter) across the ~1M texels
+// makes the very first GPU frame already look like a populated attractor.
+export interface SeedSpec {
+  /** Flat [x0,y0,z0, x1,y1,z1, ...] array of real, already-on-attractor points, in the same
+   * local coordinate space stepAttractor() operates in (i.e. unscaled, pre-`points.scale`). */
+  points: Float32Array;
+  /** Half-width of the uniform per-axis jitter added to each texel's replicated point, in the
+   * same units as `points`. Keeps texels that land on the same sample point from moving in
+   * perfect lockstep forever; should be small relative to the attractor's own extent. */
+  jitter: number;
+}
+
+// Pure so it's unit-testable without a WebGL context: fills a GPUComputationRenderer
+// DataTexture's backing Float32Array (RGBA texels, only RGB used) with initial positions, either
+// from `seed` (see SeedSpec above) or, when omitted, the original default — near-identical random
+// points in a tiny [-0.05, 0.05]^3 cube near the origin.
+export function fillSeedTexture(data: Float32Array, seed?: SeedSpec): void {
+  if (seed && seed.points.length >= 3) {
+    const count = Math.floor(seed.points.length / 3);
+    const j = seed.jitter;
+    for (let i = 0; i < data.length; i += 4) {
+      const s = Math.floor(Math.random() * count) * 3;
+      data[i] = seed.points[s] + (Math.random() - 0.5) * j;
+      data[i + 1] = seed.points[s + 1] + (Math.random() - 0.5) * j;
+      data[i + 2] = seed.points[s + 2] + (Math.random() - 0.5) * j;
+      data[i + 3] = 1;
+    }
+    return;
+  }
+  for (let i = 0; i < data.length; i += 4) {
+    data[i] = (Math.random() - 0.5) * 0.1;
+    data[i + 1] = (Math.random() - 0.5) * 0.1;
+    data[i + 2] = (Math.random() - 0.5) * 0.1;
+    data[i + 3] = 1;
+  }
+}
+
 export class LiveAttractor {
   readonly points: THREE.Points;
   private gpuCompute: GPUComputationRenderer;
@@ -74,17 +119,12 @@ export class LiveAttractor {
   private material: THREE.ShaderMaterial;
   private tier: Tier;
 
-  constructor(renderer: THREE.WebGLRenderer, family: AttractorFamily, params: number[], tier: Tier) {
+  constructor(renderer: THREE.WebGLRenderer, family: AttractorFamily, params: number[], tier: Tier, seed?: SeedSpec) {
     this.tier = tier;
     this.gpuCompute = new GPUComputationRenderer(tier, tier, renderer);
     const initial = this.gpuCompute.createTexture();
     const data = initial.image.data as Float32Array;
-    for (let i = 0; i < data.length; i += 4) {
-      data[i] = (Math.random() - 0.5) * 0.1;
-      data[i + 1] = (Math.random() - 0.5) * 0.1;
-      data[i + 2] = (Math.random() - 0.5) * 0.1;
-      data[i + 3] = 1;
-    }
+    fillSeedTexture(data, seed);
     this.positionVariable = this.gpuCompute.addVariable('texturePosition', computeShader(family), initial);
     this.gpuCompute.setVariableDependencies(this.positionVariable, [this.positionVariable]);
     this.positionVariable.material.uniforms.uParamsA = { value: params.slice() };

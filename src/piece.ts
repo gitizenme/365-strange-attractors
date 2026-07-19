@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import type { Artwork } from './data';
 import { imageUrl, dayToDate } from './data';
 import { getFamily } from './attractor/families';
-import { LiveAttractor } from './attractor/gpgpu';
+import { LiveAttractor, type SeedSpec } from './attractor/gpgpu';
 import { pickTier } from './attractor/tiers';
 import { initialOrbitState, applyOrbitDrag, applyOrbitZoom, orbitCameraPosition, type OrbitState } from './attractor/orbit';
 import type { Attractor } from './data';
@@ -41,6 +41,58 @@ export function transitionKind(
   return current.system === next.system ? 'morph' : 'dissolve';
 }
 
+// Both estimate*Display functions below need the same shape of work: mirror a family's glslStep
+// exactly on the CPU, run it forward from a fixed start to settle onto the attractor, then sample
+// the settled trajectory to derive (a) a display scale/center from its bounding box (the original
+// purpose of this pattern) and (b) a diverse set of real, on-attractor points suitable for seeding
+// LiveAttractor's initial GPU texture (gpgpu.ts's SeedSpec) instead of its default near-identical
+// random-near-origin fill.
+//
+// That second use is the fix for a real bug (see .superpowers/sdd/task-11.5-report.md): for
+// slow-mixing systems (small dt, or attractors whose nearby trajectories take a long time to
+// decorrelate), seeding ~1M GPU points from near-identical random starts means the whole cloud
+// only visually "fills in" the true attractor shape as fast as the system's own mixing timescale —
+// which can be minutes of wall-clock viewing time, not seconds (concretely, chaotic_flow day
+// 025-sometimes-chaos). A single CPU trajectory of a few thousand steps is cheap (well under a
+// millisecond) and, being one long ergodic run rather than ~1M parallel near-identical ones,
+// naturally visits the attractor's true shape — so sampling real points from it and replicating
+// them (with light jitter) across the GPU texture makes the very first rendered frame already look
+// like a populated attractor.
+function sampleSettledTrajectory(
+  step: () => void,
+  state: { x: number; y: number; z: number },
+  settleSteps: number,
+  sampleSteps: number,
+): { scale: number; centerZ: number; seed: SeedSpec } {
+  for (let i = 0; i < settleSteps; i++) step();
+  let maxAbs = 0;
+  let minZ = Infinity;
+  let maxZ = -Infinity;
+  // Cap how many of the sampled points we actually keep: ~1M GPU texels only need a diverse pool
+  // to draw from, not one entry per texel (they're picked randomly with replacement — see
+  // gpgpu.ts's fillSeedTexture) — a few thousand distinct points is already plenty of diversity
+  // and keeps this array small.
+  const SEED_SAMPLE_CAP = 4096;
+  const stride = Math.max(1, Math.floor(sampleSteps / SEED_SAMPLE_CAP));
+  const seedPoints: number[] = [];
+  for (let i = 0; i < sampleSteps; i++) {
+    step();
+    if (!isFinite(state.x) || !isFinite(state.y) || !isFinite(state.z)) break;
+    maxAbs = Math.max(maxAbs, Math.abs(state.x), Math.abs(state.y), Math.abs(state.z));
+    minZ = Math.min(minZ, state.z);
+    maxZ = Math.max(maxZ, state.z);
+    if (i % stride === 0) seedPoints.push(state.x, state.y, state.z);
+  }
+  const TARGET_HALF_EXTENT = 4; // fits comfortably inside the orbit camera's default frustum (radius 10, 50deg fov => visible half-height ~4.66)
+  const scale = maxAbs > 0.001 ? TARGET_HALF_EXTENT / maxAbs : 1;
+  const centerZ = isFinite(minZ) && isFinite(maxZ) ? (minZ + maxZ) / 2 : 0;
+  // Jitter scales with the attractor's own extent (1% of maxAbs) rather than a flat constant: a
+  // fixed jitter that looks right for a ~1-unit-extent day would barely register on a ~40-unit
+  // day, and vice versa (this dataset's chaotic_flow days span roughly that range).
+  const jitter = maxAbs > 0.001 ? maxAbs * 0.01 : 0.05;
+  return { scale, centerZ, seed: { points: Float32Array.from(seedPoints), jitter } };
+}
+
 // Lorenz-84's natural coordinate range varies a lot from day to day (empirically, half-extents
 // across this dataset's lorenz_84 days range from ~3 to ~20 world units depending on a/b/F/G),
 // unlike classic Lorenz where a single flat display scale works because rho is the only param
@@ -52,32 +104,25 @@ export function transitionKind(
 // equations as lorenz84.ts's glslStep on the CPU (a few thousand float ops, sub-millisecond)
 // once per open() to estimate this specific day's bounding extent, then derive a scale/centerZ
 // from that so the cloud lands inside the default framing regardless of parameters.
-function estimateLorenz84Display(params: number[]): { scale: number; centerZ: number } {
+//
+// (lorenz_84's live cloud was checked empirically for the same slow-mixing seeding bug that
+// chaotic_flow has — see task-11.5-report.md — and does NOT show it: a many-parallel-trajectory
+// CPU simulation of this dataset's two smallest-dt lorenz_84 days, 015-eye-of-the-storm and
+// 084-cool-wave (dt=0.002, matching chaotic_flow day 025's order of magnitude), reaches ~95-99%
+// of its long-run extent within the app's existing shipped prewarm budget. The `seed` field on
+// the returned value is still populated — same shared helper — but piece.ts's open() does not
+// currently pass it to LiveAttractor for this family, since there's no measured benefit and doing
+// so would be an untested code path for an already-working family.)
+export function estimateLorenz84Display(params: number[]): { scale: number; centerZ: number; seed: SeedSpec } {
   const [a, b, F, G, dt] = params;
-  let x = 0.1, y = 0.1, z = 0.1;
-  const SETTLE = 2000;
-  const SAMPLE = 2000;
+  const state = { x: 0.1, y: 0.1, z: 0.1 };
   const step = () => {
-    const dx = -y * y - z * z - a * x + a * F;
-    const dy = x * y - b * x * z - y + G;
-    const dz = b * x * y + x * z - z;
-    x += dx * dt; y += dy * dt; z += dz * dt;
+    const dx = -state.y * state.y - state.z * state.z - a * state.x + a * F;
+    const dy = state.x * state.y - b * state.x * state.z - state.y + G;
+    const dz = b * state.x * state.y + state.x * state.z - state.z;
+    state.x += dx * dt; state.y += dy * dt; state.z += dz * dt;
   };
-  for (let i = 0; i < SETTLE; i++) step();
-  let maxAbs = 0;
-  let minZ = Infinity;
-  let maxZ = -Infinity;
-  for (let i = 0; i < SAMPLE; i++) {
-    step();
-    if (!isFinite(x) || !isFinite(y) || !isFinite(z)) break;
-    maxAbs = Math.max(maxAbs, Math.abs(x), Math.abs(y), Math.abs(z));
-    minZ = Math.min(minZ, z);
-    maxZ = Math.max(maxZ, z);
-  }
-  const TARGET_HALF_EXTENT = 4; // fits comfortably inside the orbit camera's default frustum (radius 10, 50deg fov => visible half-height ~4.66)
-  const scale = maxAbs > 0.001 ? TARGET_HALF_EXTENT / maxAbs : 1;
-  const centerZ = isFinite(minZ) && isFinite(maxZ) ? (minZ + maxZ) / 2 : 0;
-  return { scale, centerZ };
+  return sampleSettledTrajectory(step, state, 2000, 2000);
 }
 
 // chaotic_flow's natural extent varies even more than lorenz_84's across this dataset's 17 days
@@ -88,7 +133,15 @@ function estimateLorenz84Display(params: number[]): { scale: number; centerZ: nu
 // the raw parameters and the resulting attractor's size. Reuse the same CPU pre-simulation
 // strategy as estimateLorenz84Display: mirror chaoticFlow.ts's glslStep exactly on the CPU and
 // measure the actual settled bounding extent for this specific day's params.
-function estimateChaoticFlowDisplay(params: number[]): { scale: number; centerZ: number } {
+//
+// Sample steps are doubled relative to estimateLorenz84Display's (4000 vs 2000): empirically
+// validated in task-11.5-report.md across all 17 chaotic_flow days, seeding LiveAttractor from
+// this function's `seed` output brings the live cloud to ~79-170% of its long-run extent within
+// the *existing* shipped prewarm budget for every day, including 025-sometimes-chaos (was ~3%
+// under the old random-near-origin seeding) — and the extra sample steps cost well under a
+// millisecond of CPU time (measured), nowhere near the multi-second freeze a naive "just run more
+// GPU settling steps" fix would have caused.
+export function estimateChaoticFlowDisplay(params: number[]): { scale: number; centerZ: number; seed: SeedSpec } {
   const c = params;
   const dT = c[21];
   const opVar = (idx: number, x: number, y: number, z: number) => {
@@ -98,30 +151,15 @@ function estimateChaoticFlowDisplay(params: number[]): { scale: number; centerZ:
     if (i === 2) return y;
     return z;
   };
-  let x = 0.1, y = 0.1, z = 0.1;
-  const SETTLE = 2000;
-  const SAMPLE = 2000;
+  const state = { x: 0.1, y: 0.1, z: 0.1 };
   const step = () => {
+    const { x, y, z } = state;
     const dx = c[0] * opVar(c[1], x, y, z) * x + c[2] * opVar(c[3], x, y, z) * y + c[4] * opVar(c[5], x, y, z) * z + c[6];
     const dy = c[7] * opVar(c[8], x, y, z) * x + c[9] * opVar(c[10], x, y, z) * y + c[11] * opVar(c[12], x, y, z) * z + c[13];
     const dz = c[14] * opVar(c[15], x, y, z) * x + c[16] * opVar(c[17], x, y, z) * y + c[18] * opVar(c[19], x, y, z) * z + c[20];
-    x += dx * dT; y += dy * dT; z += dz * dT;
+    state.x += dx * dT; state.y += dy * dT; state.z += dz * dT;
   };
-  for (let i = 0; i < SETTLE; i++) step();
-  let maxAbs = 0;
-  let minZ = Infinity;
-  let maxZ = -Infinity;
-  for (let i = 0; i < SAMPLE; i++) {
-    step();
-    if (!isFinite(x) || !isFinite(y) || !isFinite(z)) break;
-    maxAbs = Math.max(maxAbs, Math.abs(x), Math.abs(y), Math.abs(z));
-    minZ = Math.min(minZ, z);
-    maxZ = Math.max(maxZ, z);
-  }
-  const TARGET_HALF_EXTENT = 4; // matches estimateLorenz84Display's target, same orbit camera frustum
-  const scale = maxAbs > 0.001 ? TARGET_HALF_EXTENT / maxAbs : 1;
-  const centerZ = isFinite(minZ) && isFinite(maxZ) ? (minZ + maxZ) / 2 : 0;
-  return { scale, centerZ };
+  return sampleSettledTrajectory(step, state, 2000, 4000);
 }
 
 export interface LiveDeps {
@@ -293,7 +331,20 @@ export class PieceView {
     const family = attractor && attractor.system !== 'static-only' ? getFamily(attractor.system) : null;
     if (family && attractor?.params && this.tier && !KNOWN_DEGENERATE_DAYS.has(a.day)) {
       try {
-        this.liveAttractor = new LiveAttractor(this.live_.renderer, family, attractor.params, this.tier);
+        // lorenz_84's scale/centerZ can't be a flat constant like Lorenz's — see
+        // estimateLorenz84Display's comment above for why — so compute it per-day instead.
+        const lorenz84Display = attractor.system === 'lorenz_84' ? estimateLorenz84Display(attractor.params) : null;
+        // chaotic_flow needs the same per-day treatment, and for the same reason (see
+        // estimateChaoticFlowDisplay's comment) — its spread varies even more across days than
+        // lorenz_84's does. Computed here, before construction, because its `seed` field also
+        // fixes the slow-mixing initial-cloud bug (see estimateChaoticFlowDisplay's comment and
+        // gpgpu.ts's SeedSpec) and needs to reach the LiveAttractor constructor below.
+        const chaoticFlowDisplay = attractor.system === 'chaotic_flow' ? estimateChaoticFlowDisplay(attractor.params) : null;
+        // Only chaotic_flow gets the real-trajectory seed — lorenz_84 was checked empirically
+        // (see estimateLorenz84Display's comment) and doesn't show the slow-mixing bug, so it
+        // keeps LiveAttractor's original default random-near-origin seeding.
+        const seed = chaoticFlowDisplay && chaoticFlowDisplay.seed.points.length >= 3 ? chaoticFlowDisplay.seed : undefined;
+        this.liveAttractor = new LiveAttractor(this.live_.renderer, family, attractor.params, this.tier, seed);
         // LiveAttractor's own settling burst (Task 3, fixed at 150 steps) integrates only
         // 150 * dt simulated time units. That's plenty for this dataset's typical dt (~0.03-0.2)
         // but nowhere near enough for the smallest dt found here (e.g. 0.001, the classic-constants
@@ -329,13 +380,6 @@ export class PieceView {
         // center also sits close to local z=0 for both days (empirically within ±0.15), so unlike
         // Lorenz, no z-recentering formula is needed — it falls through to the 0 default below.
         const PICKOVER_DISPLAY_SCALE = 3.2;
-        // lorenz_84's scale/centerZ can't be a flat constant like Lorenz's — see
-        // estimateLorenz84Display's comment above for why — so compute it per-day instead.
-        const lorenz84Display = attractor.system === 'lorenz_84' ? estimateLorenz84Display(attractor.params) : null;
-        // chaotic_flow needs the same per-day treatment, and for the same reason (see
-        // estimateChaoticFlowDisplay's comment) — its spread varies even more across days than
-        // lorenz_84's does.
-        const chaoticFlowDisplay = attractor.system === 'chaotic_flow' ? estimateChaoticFlowDisplay(attractor.params) : null;
         const centerZ = attractor.system === 'lorenz' && attractor.params.length >= 2 ? attractor.params[1] - 1
           : lorenz84Display ? lorenz84Display.centerZ
           : chaoticFlowDisplay ? chaoticFlowDisplay.centerZ
