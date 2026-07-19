@@ -80,6 +80,50 @@ function estimateLorenz84Display(params: number[]): { scale: number; centerZ: nu
   return { scale, centerZ };
 }
 
+// chaotic_flow's natural extent varies even more than lorenz_84's across this dataset's 17 days
+// (empirically, CPU pre-simulation of all 17 gives half-extents from ~1 to ~40+ world units —
+// see Task 11 report) because the family's per-day parameters don't just scale a fixed equation
+// shape, they change which variable each of the 9 matrix terms multiplies (see chaoticFlow.ts's
+// header comment for the Op-selector mechanism), so there's no closed-form relationship between
+// the raw parameters and the resulting attractor's size. Reuse the same CPU pre-simulation
+// strategy as estimateLorenz84Display: mirror chaoticFlow.ts's glslStep exactly on the CPU and
+// measure the actual settled bounding extent for this specific day's params.
+function estimateChaoticFlowDisplay(params: number[]): { scale: number; centerZ: number } {
+  const c = params;
+  const dT = c[21];
+  const opVar = (idx: number, x: number, y: number, z: number) => {
+    const i = Math.round(idx);
+    if (i <= 0) return 1;
+    if (i === 1) return x;
+    if (i === 2) return y;
+    return z;
+  };
+  let x = 0.1, y = 0.1, z = 0.1;
+  const SETTLE = 2000;
+  const SAMPLE = 2000;
+  const step = () => {
+    const dx = c[0] * opVar(c[1], x, y, z) * x + c[2] * opVar(c[3], x, y, z) * y + c[4] * opVar(c[5], x, y, z) * z + c[6];
+    const dy = c[7] * opVar(c[8], x, y, z) * x + c[9] * opVar(c[10], x, y, z) * y + c[11] * opVar(c[12], x, y, z) * z + c[13];
+    const dz = c[14] * opVar(c[15], x, y, z) * x + c[16] * opVar(c[17], x, y, z) * y + c[18] * opVar(c[19], x, y, z) * z + c[20];
+    x += dx * dT; y += dy * dT; z += dz * dT;
+  };
+  for (let i = 0; i < SETTLE; i++) step();
+  let maxAbs = 0;
+  let minZ = Infinity;
+  let maxZ = -Infinity;
+  for (let i = 0; i < SAMPLE; i++) {
+    step();
+    if (!isFinite(x) || !isFinite(y) || !isFinite(z)) break;
+    maxAbs = Math.max(maxAbs, Math.abs(x), Math.abs(y), Math.abs(z));
+    minZ = Math.min(minZ, z);
+    maxZ = Math.max(maxZ, z);
+  }
+  const TARGET_HALF_EXTENT = 4; // matches estimateLorenz84Display's target, same orbit camera frustum
+  const scale = maxAbs > 0.001 ? TARGET_HALF_EXTENT / maxAbs : 1;
+  const centerZ = isFinite(minZ) && isFinite(maxZ) ? (minZ + maxZ) / 2 : 0;
+  return { scale, centerZ };
+}
+
 export interface LiveDeps {
   attractors: Attractor[];
   renderer: THREE.WebGLRenderer;
@@ -288,12 +332,18 @@ export class PieceView {
         // lorenz_84's scale/centerZ can't be a flat constant like Lorenz's — see
         // estimateLorenz84Display's comment above for why — so compute it per-day instead.
         const lorenz84Display = attractor.system === 'lorenz_84' ? estimateLorenz84Display(attractor.params) : null;
+        // chaotic_flow needs the same per-day treatment, and for the same reason (see
+        // estimateChaoticFlowDisplay's comment) — its spread varies even more across days than
+        // lorenz_84's does.
+        const chaoticFlowDisplay = attractor.system === 'chaotic_flow' ? estimateChaoticFlowDisplay(attractor.params) : null;
         const centerZ = attractor.system === 'lorenz' && attractor.params.length >= 2 ? attractor.params[1] - 1
           : lorenz84Display ? lorenz84Display.centerZ
+          : chaoticFlowDisplay ? chaoticFlowDisplay.centerZ
           : 0;
         const scale = attractor.system === 'lorenz' ? LORENZ_DISPLAY_SCALE
           : attractor.system === 'pickover' ? PICKOVER_DISPLAY_SCALE
           : lorenz84Display ? lorenz84Display.scale
+          : chaoticFlowDisplay ? chaoticFlowDisplay.scale
           : 1;
         this.liveAttractor.points.scale.setScalar(scale);
         this.liveAttractor.points.position.set(a.x, a.y, 8 - scale * centerZ);

@@ -4,6 +4,7 @@ import { LORENZ_84 } from './families/lorenz84';
 import { PICKOVER } from './families/pickover';
 import { POLYNOMIAL_A } from './families/polynomialA';
 import { POLYNOMIAL_B } from './families/polynomialB';
+import { CHAOTIC_FLOW } from './families/chaoticFlow';
 
 export const FAMILIES: Record<string, AttractorFamily> = {
   lorenz: LORENZ,
@@ -11,6 +12,7 @@ export const FAMILIES: Record<string, AttractorFamily> = {
   pickover: PICKOVER,
   polynomial_a: POLYNOMIAL_A,
   polynomial_b: POLYNOMIAL_B,
+  chaotic_flow: CHAOTIC_FLOW,
 };
 
 export function getFamily(system: string): AttractorFamily | null {
