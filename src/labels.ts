@@ -28,7 +28,7 @@ export class Labels {
       const sy = canvas.clientHeight / 2 - (item.p.y - camera.position.y) / wpp;
       el.textContent = `${String(item.a.day).padStart(3, '0')} · ${item.a.title}`;
       el.style.display = 'block';
-      el.style.transform = `translate(${Math.round(sx)}px, ${Math.round(sy + 14 / wpp * wpp + 18)}px) translateX(-50%)`;
+      el.style.transform = `translate(${Math.round(sx)}px, ${Math.round(sy + 32)}px) translateX(-50%)`;
     });
   }
 }

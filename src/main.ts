@@ -9,10 +9,16 @@ import { IndexView } from './indexview';
 import { Minimap } from './minimap';
 
 async function boot() {
-  document.querySelector('.static-piece')?.remove();
   const { artworks, atlas } = await loadData();
   const canvas = document.getElementById('gl') as HTMLCanvasElement;
-  const con = new Constellation(canvas, artworks, atlas);
+  let con: Constellation;
+  try {
+    con = new Constellation(canvas, artworks, atlas);
+  } catch (err) {
+    console.error('WebGL unavailable, falling back to static page', err);
+    return; // .static-piece (if present) stays visible; no interactive UI is built
+  }
+  document.querySelector('.static-piece')?.remove();
   const reduced = matchMedia('(prefers-reduced-motion: reduce)');
   con.setReducedMotion(reduced.matches);
   addEventListener('resize', () => con.resize());
@@ -100,8 +106,10 @@ async function boot() {
     const dt = Math.min(0.05, (t - lastT) / 1000); lastT = t;
     controls.update(dt);
     con.render(t / 1000);
-    labels.update(con.camera, canvas, i => con.positionOf(i));
-    minimap.update(con.camera, canvas, i => con.positionOf(i));
+    if (!piece.isOpen() && !index.isOpen()) {
+      labels.update(con.camera, canvas, i => con.positionOf(i));
+      minimap.update(con.camera, canvas, i => con.positionOf(i));
+    }
     requestAnimationFrame(loop);
   };
   requestAnimationFrame(loop);
