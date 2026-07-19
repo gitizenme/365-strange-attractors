@@ -19,6 +19,45 @@ export function captionFor(a: { day: number; title: string }): string {
   return `${String(a.day).padStart(3, '0')}/365 · ${a.title} · ${MONTHS[month - 1]} ${date}, 2010`;
 }
 
+// Lorenz-84's natural coordinate range varies a lot from day to day (empirically, half-extents
+// across this dataset's lorenz_84 days range from ~3 to ~20 world units depending on a/b/F/G),
+// unlike classic Lorenz where a single flat display scale works because rho is the only param
+// that materially changes across days and its fixed-point spacing has a simple closed form
+// (rho - 1). There's no equivalent closed form for Lorenz-84, and empirical testing in-browser
+// confirmed a single flat constant either shrinks the small days to near-invisible dots or
+// leaves the large days (e.g. 006-goblet-of-light, half-extent ~14) entirely outside the orbit
+// camera's frustum, even at max zoom-out (radius 30). Instead, cheaply simulate the same
+// equations as lorenz84.ts's glslStep on the CPU (a few thousand float ops, sub-millisecond)
+// once per open() to estimate this specific day's bounding extent, then derive a scale/centerZ
+// from that so the cloud lands inside the default framing regardless of parameters.
+function estimateLorenz84Display(params: number[]): { scale: number; centerZ: number } {
+  const [a, b, F, G, dt] = params;
+  let x = 0.1, y = 0.1, z = 0.1;
+  const SETTLE = 2000;
+  const SAMPLE = 2000;
+  const step = () => {
+    const dx = -y * y - z * z - a * x + a * F;
+    const dy = x * y - b * x * z - y + G;
+    const dz = b * x * y + x * z - z;
+    x += dx * dt; y += dy * dt; z += dz * dt;
+  };
+  for (let i = 0; i < SETTLE; i++) step();
+  let maxAbs = 0;
+  let minZ = Infinity;
+  let maxZ = -Infinity;
+  for (let i = 0; i < SAMPLE; i++) {
+    step();
+    if (!isFinite(x) || !isFinite(y) || !isFinite(z)) break;
+    maxAbs = Math.max(maxAbs, Math.abs(x), Math.abs(y), Math.abs(z));
+    minZ = Math.min(minZ, z);
+    maxZ = Math.max(maxZ, z);
+  }
+  const TARGET_HALF_EXTENT = 4; // fits comfortably inside the orbit camera's default frustum (radius 10, 50deg fov => visible half-height ~4.66)
+  const scale = maxAbs > 0.001 ? TARGET_HALF_EXTENT / maxAbs : 1;
+  const centerZ = isFinite(minZ) && isFinite(maxZ) ? (minZ + maxZ) / 2 : 0;
+  return { scale, centerZ };
+}
+
 export interface LiveDeps {
   attractors: Attractor[];
   renderer: THREE.WebGLRenderer;
@@ -167,8 +206,15 @@ export class PieceView {
         // also much larger than orbit.ts's fixed default view radius (10, clamped to [3, 30]), so
         // scale the cloud down to fit comfortably within that default framing.
         const LORENZ_DISPLAY_SCALE = 0.2;
-        const centerZ = attractor.system === 'lorenz' && attractor.params.length >= 2 ? attractor.params[1] - 1 : 0;
-        const scale = attractor.system === 'lorenz' ? LORENZ_DISPLAY_SCALE : 1;
+        // lorenz_84's scale/centerZ can't be a flat constant like Lorenz's — see
+        // estimateLorenz84Display's comment above for why — so compute it per-day instead.
+        const lorenz84Display = attractor.system === 'lorenz_84' ? estimateLorenz84Display(attractor.params) : null;
+        const centerZ = attractor.system === 'lorenz' && attractor.params.length >= 2 ? attractor.params[1] - 1
+          : lorenz84Display ? lorenz84Display.centerZ
+          : 0;
+        const scale = attractor.system === 'lorenz' ? LORENZ_DISPLAY_SCALE
+          : lorenz84Display ? lorenz84Display.scale
+          : 1;
         this.liveAttractor.points.scale.setScalar(scale);
         this.liveAttractor.points.position.set(a.x, a.y, 8 - scale * centerZ);
         this.live_.liveScene.add(this.liveAttractor.points);
