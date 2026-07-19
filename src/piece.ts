@@ -10,6 +10,14 @@ import type { Controls } from './controls';
 
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 
+// Known mathematically degenerate for their one real-world parameter set (see Phase 2
+// Task 7 report): polynomial_a (day 72) has no real fixed point and diverges to infinity
+// for every starting value; polynomial_b (day 41) collapses to a single attracting fixed
+// point within ~150 iterations. Neither throws during construction (the GPU NaN-guard
+// resets in-shader rather than raising), so skip live construction explicitly rather than
+// showing a broken "Hide Image" toggle for a flickering-noise or invisible cloud.
+const KNOWN_DEGENERATE_DAYS = new Set([72, 41]);
+
 export function neighborDay(day: number, dir: 1 | -1): number {
   return ((day - 1 + dir + 365) % 365) + 1;
 }
@@ -178,7 +186,7 @@ export class PieceView {
     this.liveAttractor = null;
     const attractor = this.attractorsByDay.get(a.day);
     const family = attractor && attractor.system !== 'static-only' ? getFamily(attractor.system) : null;
-    if (family && attractor?.params && this.tier) {
+    if (family && attractor?.params && this.tier && !KNOWN_DEGENERATE_DAYS.has(a.day)) {
       try {
         this.liveAttractor = new LiveAttractor(this.live_.renderer, family, attractor.params, this.tier);
         // LiveAttractor's own settling burst (Task 3, fixed at 150 steps) integrates only
