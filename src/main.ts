@@ -6,6 +6,7 @@ import { Labels } from './labels';
 import { Router } from './router';
 import { PieceView } from './piece';
 import { IndexView } from './indexview';
+import { Minimap } from './minimap';
 
 async function boot() {
   document.querySelector('.static-piece')?.remove();
@@ -16,6 +17,7 @@ async function boot() {
   con.setReducedMotion(reduced.matches);
   addEventListener('resize', () => con.resize());
   const controls = new Controls(canvas, con.camera, { reducedMotion: reduced.matches });
+  reduced.addEventListener('change', () => con.setReducedMotion(reduced.matches));
 
   const overlay = document.getElementById('overlay')!;
   const timeBtn = document.createElement('button');
@@ -29,6 +31,18 @@ async function boot() {
     timeBtn.setAttribute('aria-pressed', String(timeMode));
     con.setTimeMix(timeMode ? 1 : 0);
   });
+
+  const minimap = new Minimap(overlay, artworks, (x, y) => controls.flyTo(x, y, con.camera.position.z, 0.6));
+
+  if (!localStorage.getItem('la-intro-seen')) {
+    const intro = document.createElement('div');
+    intro.id = 'intro-card';
+    intro.innerHTML = '<h1>365 Strange Attractors</h1><p>One attractor a day, 2010.<br>Drag to wander · scroll to dive · click to open.</p>';
+    overlay.appendChild(intro);
+    const dismiss = () => { intro.classList.add('gone'); localStorage.setItem('la-intro-seen', '1'); };
+    setTimeout(dismiss, 6000);
+    canvas.addEventListener('pointerdown', dismiss, { once: true });
+  }
 
   const labels = new Labels(overlay, artworks);
   let hovered: number | null = null;
@@ -87,6 +101,7 @@ async function boot() {
     controls.update(dt);
     con.render(t / 1000);
     labels.update(con.camera, canvas, i => con.positionOf(i));
+    minimap.update(con.camera, canvas, i => con.positionOf(i));
     requestAnimationFrame(loop);
   };
   requestAnimationFrame(loop);
