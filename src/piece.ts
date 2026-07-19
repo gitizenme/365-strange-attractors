@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import type { Artwork } from './data';
 import { imageUrl, dayToDate } from './data';
 import { getFamily } from './attractor/families';
+import { normalizeFuncParams } from './attractor/families/polynomialFunc';
 import { LiveAttractor, type SeedSpec } from './attractor/gpgpu';
 import { pickTier } from './attractor/tiers';
 import { initialOrbitState, applyOrbitDrag, applyOrbitZoom, orbitCameraPosition, type OrbitState } from './attractor/orbit';
@@ -16,7 +17,25 @@ const MONTHS = ['January','February','March','April','May','June','July','August
 // point within ~150 iterations. Neither throws during construction (the GPU NaN-guard
 // resets in-shader rather than raising), so skip live construction explicitly rather than
 // showing a broken "Hide Image" toggle for a flickering-noise or invisible cloud.
-const KNOWN_DEGENERATE_DAYS = new Set([72, 41]);
+//
+// Task 12 additions, same symptom/handling but different root cause (documented honestly --
+// see .superpowers/sdd/task-12-report.md for the full investigation of both):
+// - polynomial_func day 34 (034-infinity): CPU-checked from 40 widely-spread random starting
+//   points (range [-2,2]^3, 8000-step settle) -- ALL converge to the same true fixed point
+//   (zero extent over 3000 sampled steps from every start). Same class of finding as
+//   polynomial_b day 41 above, just for this family's Sin variant.
+// - polynomial_sprott day 5 (005-transmission, this family's only in-scope real day): the
+//   formula's degree-2 structure is directly confirmed against Chaoscope's own documented
+//   equation image, but the degree 3-5 term ordering is NOT independently documented anywhere
+//   found -- it's a principled reconstruction (see polynomialSprott.ts's header comment) that
+//   exactly reproduces the one confirmed (degree-2) case. Under that reconstruction, this real
+//   day's actual 168 coefficients diverge to infinity within ~7-14 iterations from every tested
+//   starting point (including many very close to the origin), and neither of the plan brief's
+//   suggested damping fallbacks produces a stable, non-collapsed result (mild damping still
+//   diverges; stronger damping instead collapses to a fixed point -- no bounded chaotic window
+//   was found between those two regimes). Skipping live construction here rather than shipping
+//   a formula known not to work for this family's only real calibration day.
+const KNOWN_DEGENERATE_DAYS = new Set([72, 41, 34, 5]);
 
 export function neighborDay(day: number, dir: 1 | -1): number {
   return ((day - 1 + dir + 365) % 365) + 1;
@@ -160,6 +179,65 @@ export function estimateChaoticFlowDisplay(params: number[]): { scale: number; c
     state.x += dx * dT; state.y += dy * dT; state.z += dz * dT;
   };
   return sampleSettledTrajectory(step, state, 2000, 4000);
+}
+
+// polynomial_c converges fast (CPU check: both real days reach ~95-99% of their long-run extent
+// within the 150-step budget LiveAttractor's constructor already runs), so this isn't fixing a
+// slow-mixing bug the way chaotic_flow's version does -- it's here because the family's two real
+// days still have a ~2.5x different natural scale (half-extents ~1.4 vs ~2.6-3.4 units), so a
+// single flat constant (like Lorenz's/Pickover's) would leave one day's cloud visibly
+// under/over-sized relative to the other. Mirrors polynomialC.ts's glslStep exactly.
+export function estimatePolynomialCDisplay(params: number[]): { scale: number; centerZ: number; seed: SeedSpec } {
+  const c = params;
+  const state = { x: 0.1, y: 0.1, z: 0.1 };
+  const step = () => {
+    const { x, y, z } = state;
+    const nx = c[0] + x * (c[1] + c[2] * x + c[3] * y) + y * (c[4] + c[5] * y);
+    const ny = c[6] + y * (c[7] + c[8] * y + c[9] * z) + z * (c[10] + c[11] * z);
+    const nz = c[12] + z * (c[13] + c[14] * z + c[15] * x) + x * (c[16] + c[17] * x);
+    state.x = nx; state.y = ny; state.z = nz;
+  };
+  return sampleSettledTrajectory(step, state, 3000, 3000);
+}
+
+// polynomial_func's natural extent varies enormously across this dataset's 6 real days -- CPU
+// pre-simulation gives half-extents from under 1 unit (034-infinity, which converges to a fixed
+// point -- see KNOWN_DEGENERATE_DAYS-adjacent handling) up to several hundred/low-thousands of
+// units (064-coma), a >1000x spread, so a flat constant is a non-starter (see the analogous
+// reasoning for lorenz_84/chaotic_flow above). It also needs the same slow-to-populate fix
+// chaotic_flow got in task-11.5: 064-coma's CPU check shows the live cloud reaches only ~20% of
+// its long-run extent within LiveAttractor's fixed 150-step constructor settle (vs. ~75-105% for
+// the other 5 real days) -- not because of slow mixing/decorrelation like chaotic_flow's small-dt
+// days, but because this is a large-extent expanding map that simply takes more than 150
+// iterations to reach its natural scale from a near-origin start, and since ~1M GPU texels all
+// start near-identical, they'd all lag behind in lockstep the same way. Seeding from a real
+// pre-sampled trajectory (this function's `seed` output) sidesteps that the same way it did for
+// chaotic_flow. Mirrors polynomialFunc.ts's glslStep exactly (operating on already-normalized
+// 40-slot params -- see normalizeFuncParams).
+export function estimatePolynomialFuncDisplay(rawParams: number[]): { scale: number; centerZ: number; seed: SeedSpec } {
+  const c = normalizeFuncParams(rawParams);
+  const variant = c[39];
+  const state = { x: 0.1, y: 0.1, z: 0.1 };
+  const step = () => {
+    const { x, y, z } = state;
+    const ax = Math.abs(x), ay = Math.abs(y), az = Math.abs(z);
+    let nx: number, ny: number, nz: number;
+    if (variant < 0.5) {
+      nx = c[0] + c[1]*x + c[2]*y + c[3]*z + c[4]*ax + c[5]*ay + c[6]*az;
+      ny = c[7] + c[8]*x + c[9]*y + c[10]*z + c[11]*ax + c[12]*ay + c[13]*az;
+      nz = c[14] + c[15]*x + c[16]*y + c[17]*z + c[18]*ax + c[19]*ay + c[20]*az;
+    } else if (variant < 1.5) {
+      nx = c[0] + c[1]*x + c[2]*y + c[3]*z + c[4]*ax + c[5]*ay + c[6]*Math.pow(az, c[7]);
+      ny = c[8] + c[9]*x + c[10]*y + c[11]*z + c[12]*ax + c[13]*ay + c[14]*Math.pow(az, c[15]);
+      nz = c[16] + c[17]*x + c[18]*y + c[19]*z + c[20]*ax + c[21]*ay + c[22]*Math.pow(az, c[23]);
+    } else {
+      nx = c[0] + c[1]*x + c[2]*y + c[3]*z + c[4]*Math.sin(c[5]*c[6]*x) + c[7]*Math.sin(c[8]*c[9]*y) + c[10]*Math.sin(c[11]*c[12]*z);
+      ny = c[13] + c[14]*x + c[15]*y + c[16]*z + c[17]*Math.sin(c[18]*c[19]*x) + c[20]*Math.sin(c[21]*c[22]*y) + c[23]*Math.sin(c[24]*c[25]*z);
+      nz = c[26] + c[27]*x + c[28]*y + c[29]*z + c[30]*Math.sin(c[31]*c[32]*x) + c[33]*Math.sin(c[34]*c[35]*y) + c[36]*Math.sin(c[37]*c[38]*z);
+    }
+    state.x = nx; state.y = ny; state.z = nz;
+  };
+  return sampleSettledTrajectory(step, state, 3000, 3000);
 }
 
 export interface LiveDeps {
@@ -340,11 +418,29 @@ export class PieceView {
         // fixes the slow-mixing initial-cloud bug (see estimateChaoticFlowDisplay's comment and
         // gpgpu.ts's SeedSpec) and needs to reach the LiveAttractor constructor below.
         const chaoticFlowDisplay = attractor.system === 'chaotic_flow' ? estimateChaoticFlowDisplay(attractor.params) : null;
-        // Only chaotic_flow gets the real-trajectory seed — lorenz_84 was checked empirically
-        // (see estimateLorenz84Display's comment) and doesn't show the slow-mixing bug, so it
-        // keeps LiveAttractor's original default random-near-origin seeding.
-        const seed = chaoticFlowDisplay && chaoticFlowDisplay.seed.points.length >= 3 ? chaoticFlowDisplay.seed : undefined;
-        this.liveAttractor = new LiveAttractor(this.live_.renderer, family, attractor.params, this.tier, seed);
+        // polynomial_c and polynomial_func both need the same per-day treatment (see
+        // estimatePolynomialCDisplay's and estimatePolynomialFuncDisplay's comments above for
+        // why each one does, individually — different reasons: polynomial_c is a mild
+        // ~2.5x scale spread across its 2 real days, polynomial_func is a >1000x spread plus a
+        // slow-to-populate day).
+        const polynomialCDisplay = attractor.system === 'polynomial_c' ? estimatePolynomialCDisplay(attractor.params) : null;
+        const polynomialFuncDisplay = attractor.system === 'polynomial_func' ? estimatePolynomialFuncDisplay(attractor.params) : null;
+        // chaotic_flow and polynomial_func get the real-trajectory seed (both have at least one
+        // real day that's slow to populate from LiveAttractor's default near-origin random
+        // seeding within its fixed 150-step constructor settle — see each estimator's comment).
+        // polynomial_c converges fast enough at 150 steps that it doesn't need this, but passing
+        // its seed anyway is harmless (real on-attractor points are always at least as good a
+        // starting cloud as random near-origin noise) and keeps this block uniform. lorenz_84 was
+        // checked empirically and does NOT need it, so it deliberately keeps the default.
+        const seed = chaoticFlowDisplay?.seed ?? polynomialFuncDisplay?.seed ?? polynomialCDisplay?.seed;
+        const liveSeed = seed && seed.points.length >= 3 ? seed : undefined;
+        // polynomial_func's real archive days have 3 genuinely different underlying parameter-
+        // list lengths (21/24/39 — see polynomialFunc.ts's header comment for why), but
+        // AttractorFamily/LiveAttractor need one fixed-size params array matching paramCount.
+        // normalizeFuncParams pads/tags the raw params into that fixed 40-slot shape; every
+        // other family passes its raw params through unchanged.
+        const liveParams = attractor.system === 'polynomial_func' ? normalizeFuncParams(attractor.params) : attractor.params;
+        this.liveAttractor = new LiveAttractor(this.live_.renderer, family, liveParams, this.tier, liveSeed);
         // LiveAttractor's own settling burst (Task 3, fixed at 150 steps) integrates only
         // 150 * dt simulated time units. That's plenty for this dataset's typical dt (~0.03-0.2)
         // but nowhere near enough for the smallest dt found here (e.g. 0.001, the classic-constants
@@ -383,11 +479,15 @@ export class PieceView {
         const centerZ = attractor.system === 'lorenz' && attractor.params.length >= 2 ? attractor.params[1] - 1
           : lorenz84Display ? lorenz84Display.centerZ
           : chaoticFlowDisplay ? chaoticFlowDisplay.centerZ
+          : polynomialCDisplay ? polynomialCDisplay.centerZ
+          : polynomialFuncDisplay ? polynomialFuncDisplay.centerZ
           : 0;
         const scale = attractor.system === 'lorenz' ? LORENZ_DISPLAY_SCALE
           : attractor.system === 'pickover' ? PICKOVER_DISPLAY_SCALE
           : lorenz84Display ? lorenz84Display.scale
           : chaoticFlowDisplay ? chaoticFlowDisplay.scale
+          : polynomialCDisplay ? polynomialCDisplay.scale
+          : polynomialFuncDisplay ? polynomialFuncDisplay.scale
           : 1;
         this.liveAttractor.points.scale.setScalar(scale);
         this.liveAttractor.points.position.set(a.x, a.y, 8 - scale * centerZ);
