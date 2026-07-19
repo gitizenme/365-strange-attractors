@@ -337,6 +337,14 @@ export class PieceView {
 
   isOpen(): boolean { return this.current !== null; }
 
+  // True when this device/browser has the WebGL2 + float-texture support LiveAttractor needs
+  // (pickTier() returned non-null in the constructor) — NOT whether the currently open day
+  // actually has a live cloud showing. A day can be static-only, degenerate (see
+  // KNOWN_DEGENERATE_DAYS above), or mid-construction-failure even when this is true, so callers
+  // that need "is a live attractor showing right now" should check `this.liveAttractor` (e.g. the
+  // hide-image button's visibility below), not this accessor.
+  hasLiveSupport(): boolean { return this.tier !== null; }
+
   toggleHideStatic(): void { this.root.classList.toggle('hide-static'); }
 
   private updateDisturb(dt: number): void {
