@@ -92,6 +92,8 @@ export class PieceView {
   private orbit: OrbitState | null = null;
   private orbitDragging = false;
   private orbitLast = { x: 0, y: 0 };
+  private disturbHeld = false;
+  private disturbAmount = 0;
 
   constructor(private overlay: HTMLElement, artworks: Artwork[],
               private onNavigate: (slug: string) => void, private onClose: () => void, live: LiveDeps) {
@@ -125,7 +127,6 @@ export class PieceView {
       if (e.key === 'ArrowLeft') this.nav(-1);
       if (e.key === 'ArrowRight') this.nav(1);
     });
-
     this.live_ = live;
     this.attractorsByDay = new Map(live.attractors.map(a => [a.day, a]));
     this.tier = pickTier({ webgl2: live.renderer.capabilities.isWebGL2, isMobile: /Mobi|Android/i.test(navigator.userAgent) });
@@ -139,6 +140,14 @@ export class PieceView {
       if ((e.target as HTMLElement).closest('button')) return;
       this.orbitDragging = true;
       this.orbitLast = { x: e.clientX, y: e.clientY };
+      // The disturb-hold gesture (Task 8) shares this same pointerdown: a press-and-hold that
+      // later moves should keep orbiting AND keep disturbing at once, so both flags are set from
+      // the same event rather than wiring a separate listener. Note this listener lives on the
+      // canvas, not the piece root: while a live attractor is showing, the root's CSS switches to
+      // pointer-events:none (see the `.piece.live-active` rule in style.css) specifically so
+      // drag/press input passes through to this canvas — a listener on the root itself would only
+      // ever see clicks on the nav/close buttons, never a press in the middle of the cloud.
+      this.disturbHeld = true;
     });
     addEventListener('pointermove', e => {
       if (!this.liveAttractor || !this.orbitDragging || !this.orbit) return;
@@ -147,7 +156,7 @@ export class PieceView {
       this.orbit = applyOrbitDrag(this.orbit, dx, dy);
       this.orbitLast = { x: e.clientX, y: e.clientY };
     });
-    addEventListener('pointerup', () => { this.orbitDragging = false; });
+    addEventListener('pointerup', () => { this.orbitDragging = false; this.disturbHeld = false; });
     canvas.addEventListener('wheel', e => {
       if (!this.liveAttractor || !this.orbit) return;
       e.preventDefault();
@@ -260,6 +269,8 @@ export class PieceView {
     this.liveAttractor?.dispose();
     this.liveAttractor = null;
     this.orbit = null;
+    this.disturbHeld = false;
+    this.disturbAmount = 0;
     this.live_.controls.setEnabled(true);
     this.live_.hideImageBtn.style.display = 'none';
     this.root.classList.remove('live-active');
@@ -276,12 +287,21 @@ export class PieceView {
 
   toggleHideStatic(): void { this.root.classList.toggle('hide-static'); }
 
-  render(): void {
+  private updateDisturb(dt: number): void {
+    if (!this.liveAttractor) return;
+    const target = this.disturbHeld ? 1 : 0;
+    const rate = this.disturbHeld ? 1 / 0.3 : 1 / 1.5; // ramp up over 0.3s, ease down over 1.5s
+    this.disturbAmount += (target - this.disturbAmount) * Math.min(1, rate * dt);
+    this.liveAttractor.setPerturbation(this.disturbAmount);
+  }
+
+  render(dt: number): void {
     if (this.liveAttractor && this.orbit) {
       const pos = orbitCameraPosition(this.orbit);
       this.live_.camera.position.set(pos.x, pos.y, pos.z);
       this.live_.camera.lookAt(this.orbit.target.x, this.orbit.target.y, this.orbit.target.z);
     }
+    this.updateDisturb(dt);
     this.liveAttractor?.compute();
   }
 }

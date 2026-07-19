@@ -118,7 +118,7 @@ async function boot() {
     controls.update(dt);
     con.render(t / 1000);
     if (piece.isOpen()) {
-      piece.render();
+      piece.render(dt);
       con.renderer.autoClear = false;
       con.renderer.render(liveScene, con.camera);
       con.renderer.autoClear = true;
