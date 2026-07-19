@@ -102,6 +102,7 @@ export class LiveAttractor {
     geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(n * 3), 3));
     this.material = new THREE.ShaderMaterial({
       vertexShader: RENDER_VERTEX, fragmentShader: RENDER_FRAGMENT,
+      glslVersion: THREE.GLSL3,
       transparent: true, blending: THREE.AdditiveBlending, depthWrite: false,
       uniforms: {
         uPosition: { value: null }, uTexSize: { value: tier },
@@ -128,5 +129,6 @@ export class LiveAttractor {
   dispose(): void {
     this.points.geometry.dispose();
     this.material.dispose();
+    this.gpuCompute.dispose();
   }
 }
