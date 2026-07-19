@@ -4,4 +4,6 @@ public/data/
 public/images/
 public/day/
 pipeline/.venv/
+__pycache__/
+*.pyc
 .DS_Store
