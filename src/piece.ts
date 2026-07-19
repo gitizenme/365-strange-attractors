@@ -11,19 +11,29 @@ import type { Controls } from './controls';
 
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 
-// Known mathematically degenerate for their one real-world parameter set (see Phase 2
-// Task 7 report): polynomial_a (day 72) has no real fixed point and diverges to infinity
-// for every starting value; polynomial_b (day 41) collapses to a single attracting fixed
-// point within ~150 iterations. Neither throws during construction (the GPU NaN-guard
-// resets in-shader rather than raising), so skip live construction explicitly rather than
-// showing a broken "Hide Image" toggle for a flickering-noise or invisible cloud.
+// Known mathematically degenerate for their one real-world parameter set.
 //
-// Task 12 additions, same symptom/handling but different root cause (documented honestly --
-// see .superpowers/sdd/task-12-report.md for the full investigation of both):
+// Task 7 originally found (and Task 12.5 has since RE-CHECKED and REVERSED for two of these --
+// see below): polynomial_a (day 72) and polynomial_b (day 41) both looked degenerate. That
+// finding was correct for the formula Task 7 had shipped at the time (a guessed 1D/2D
+// delay-embedded quadratic recurrence: day 72 had no real fixed point and diverged to infinity
+// for every starting value; day 41 collapsed to a single attracting fixed point within ~150
+// iterations) -- but Task 12.5 (see .superpowers/sdd/task-12.5-report.md) replaced that guessed
+// formula with Chaoscope's own documented 3-variable cyclic formula (confirmed against the
+// manual's equation images by two independent investigations) and re-tested both real days under
+// it: BOTH now produce genuinely bounded, structured, chaotic results (CPU-confirmed: no
+// divergence, no fixed-point collapse, positive empirical Lyapunov estimate) and both were
+// browser-verified. Both are therefore REMOVED from this set below -- they are no longer
+// degenerate, the earlier formula was simply wrong for these two specific families.
+//
+// Remaining entries (34, 5) are unrelated families where the underlying degeneracy was checked
+// against Chaoscope's real documented formula from the start and still holds; the GPU NaN-guard
+// resets in-shader rather than raising, so skip live construction explicitly rather than showing
+// a broken "Hide Image" toggle for a flickering-noise or invisible cloud:
 // - polynomial_func day 34 (034-infinity): CPU-checked from 40 widely-spread random starting
 //   points (range [-2,2]^3, 8000-step settle) -- ALL converge to the same true fixed point
-//   (zero extent over 3000 sampled steps from every start). Same class of finding as
-//   polynomial_b day 41 above, just for this family's Sin variant.
+//   (zero extent over 3000 sampled steps from every start), under the manual-confirmed Sin
+//   variant formula (Task 12).
 // - polynomial_sprott day 5 (005-transmission, this family's only in-scope real day): the
 //   formula's degree-2 structure is directly confirmed against Chaoscope's own documented
 //   equation image, but the degree 3-5 term ordering is NOT independently documented anywhere
@@ -35,7 +45,7 @@ const MONTHS = ['January','February','March','April','May','June','July','August
 //   diverges; stronger damping instead collapses to a fixed point -- no bounded chaotic window
 //   was found between those two regimes). Skipping live construction here rather than shipping
 //   a formula known not to work for this family's only real calibration day.
-const KNOWN_DEGENERATE_DAYS = new Set([72, 41, 34, 5]);
+const KNOWN_DEGENERATE_DAYS = new Set([34, 5]);
 
 export function neighborDay(day: number, dir: 1 | -1): number {
   return ((day - 1 + dir + 365) % 365) + 1;
@@ -195,6 +205,57 @@ export function estimatePolynomialCDisplay(params: number[]): { scale: number; c
     const nx = c[0] + x * (c[1] + c[2] * x + c[3] * y) + y * (c[4] + c[5] * y);
     const ny = c[6] + y * (c[7] + c[8] * y + c[9] * z) + z * (c[10] + c[11] * z);
     const nz = c[12] + z * (c[13] + c[14] * z + c[15] * x) + x * (c[16] + c[17] * x);
+    state.x = nx; state.y = ny; state.z = nz;
+  };
+  return sampleSettledTrajectory(step, state, 3000, 3000);
+}
+
+// polynomial_a and polynomial_b (CORRECTED formulas, Task 12.5 -- see task-12.5-report.md and
+// each family file's header comment for the full story). Both families' one real day (072 for A,
+// 041 for B) turned out mathematically degenerate under Task 7's originally-shipped guessed
+// formula (072 diverged to infinity from every start, 041 collapsed to a fixed point), so both
+// were excluded via KNOWN_DEGENERATE_DAYS. Under the corrected, Chaoscope-manual-confirmed
+// formula, CPU pre-simulation of both real days' actual parameters shows a genuinely bounded,
+// structured, chaotic result instead: maxAbs settles to ~2.48 (both families), no close-fitting
+// low-period (<=20) cycle, and a positive empirically-estimated Lyapunov exponent (~0.10/step,
+// nearby trajectories separate exponentially) -- the opposite of both original degeneracies. Both
+// are re-enabled below (removed from KNOWN_DEGENERATE_DAYS) and given the same per-day CPU
+// estimation treatment as polynomial_c, for the same reason: with only one real day each there's
+// no way yet to know if a flat constant would generalize, and the per-day estimator costs nothing
+// (sub-millisecond) and is already the established pattern for this family group.
+//
+// One wrinkle specific to polynomial_a: unlike every other estimator in this file, this one does
+// NOT start from the shared (0.1, 0.1, 0.1) convention. For day 072's actual parameters, that
+// exact point sits close enough to this map's divergent-basin boundary that it shoots to infinity
+// within ~20 iterations (confirmed by direct simulation) -- but this is a razor-thin fluke of that
+// one specific point, not evidence of a fragile/degenerate basin: a sweep of 2000 random starting
+// points uniformly distributed in [-0.05, 0.05]^3 (matching gpgpu.ts's actual default GPU seed
+// range) showed 0/2000 diverging, and every other individually-tested nearby start (including the
+// origin) lands on the same bounded attractor described above. Starting from the origin instead
+// sidesteps that one unlucky point without changing anything about how the real day behaves.
+// polynomial_b's day 041 has no such issue -- (0.1, 0.1, 0.1) converges fine -- but the origin is
+// used for it too, for consistency between the two files.
+export function estimatePolynomialADisplay(params: number[]): { scale: number; centerZ: number; seed: SeedSpec } {
+  const [P0, P1, P2] = params;
+  const state = { x: 0, y: 0, z: 0 };
+  const step = () => {
+    const { x, y, z } = state;
+    const nx = P0 + y - z * y;
+    const ny = P1 + z - x * z;
+    const nz = P2 + x - y * x;
+    state.x = nx; state.y = ny; state.z = nz;
+  };
+  return sampleSettledTrajectory(step, state, 3000, 3000);
+}
+
+export function estimatePolynomialBDisplay(params: number[]): { scale: number; centerZ: number; seed: SeedSpec } {
+  const [P0, P1, P2, P3, P4, P5] = params;
+  const state = { x: 0, y: 0, z: 0 };
+  const step = () => {
+    const { x, y, z } = state;
+    const nx = P0 + y - z * (P1 + y);
+    const ny = P2 + z - x * (P3 + z);
+    const nz = P4 + x - y * (P5 + x);
     state.x = nx; state.y = ny; state.z = nz;
   };
   return sampleSettledTrajectory(step, state, 3000, 3000);
@@ -425,6 +486,15 @@ export class PieceView {
         // slow-to-populate day).
         const polynomialCDisplay = attractor.system === 'polynomial_c' ? estimatePolynomialCDisplay(attractor.params) : null;
         const polynomialFuncDisplay = attractor.system === 'polynomial_func' ? estimatePolynomialFuncDisplay(attractor.params) : null;
+        // polynomial_a/polynomial_b (Task 12.5, corrected formula -- see estimatePolynomialADisplay's
+        // comment above). polynomial_a in particular NEEDS its seed passed through below: its CPU
+        // estimator deliberately starts from the origin rather than the shared (0.1,0.1,0.1)
+        // convention (that exact point diverges for day 072's real params -- see the comment above),
+        // and while the GPU's own default random-near-origin fallback was empirically checked to
+        // avoid that same unlucky point (0/2000 trials), seeding from real settled-trajectory points
+        // is strictly safer and removes any doubt for this specific fractal-boundary-adjacent case.
+        const polynomialADisplay = attractor.system === 'polynomial_a' ? estimatePolynomialADisplay(attractor.params) : null;
+        const polynomialBDisplay = attractor.system === 'polynomial_b' ? estimatePolynomialBDisplay(attractor.params) : null;
         // chaotic_flow and polynomial_func get the real-trajectory seed (both have at least one
         // real day that's slow to populate from LiveAttractor's default near-origin random
         // seeding within its fixed 150-step constructor settle — see each estimator's comment).
@@ -432,7 +502,9 @@ export class PieceView {
         // its seed anyway is harmless (real on-attractor points are always at least as good a
         // starting cloud as random near-origin noise) and keeps this block uniform. lorenz_84 was
         // checked empirically and does NOT need it, so it deliberately keeps the default.
-        const seed = chaoticFlowDisplay?.seed ?? polynomialFuncDisplay?.seed ?? polynomialCDisplay?.seed;
+        // polynomial_a/b are included for the fractal-boundary-avoidance reason noted above.
+        const seed = chaoticFlowDisplay?.seed ?? polynomialFuncDisplay?.seed ?? polynomialCDisplay?.seed
+          ?? polynomialADisplay?.seed ?? polynomialBDisplay?.seed;
         const liveSeed = seed && seed.points.length >= 3 ? seed : undefined;
         // polynomial_func's real archive days have 3 genuinely different underlying parameter-
         // list lengths (21/24/39 — see polynomialFunc.ts's header comment for why), but
@@ -481,6 +553,8 @@ export class PieceView {
           : chaoticFlowDisplay ? chaoticFlowDisplay.centerZ
           : polynomialCDisplay ? polynomialCDisplay.centerZ
           : polynomialFuncDisplay ? polynomialFuncDisplay.centerZ
+          : polynomialADisplay ? polynomialADisplay.centerZ
+          : polynomialBDisplay ? polynomialBDisplay.centerZ
           : 0;
         const scale = attractor.system === 'lorenz' ? LORENZ_DISPLAY_SCALE
           : attractor.system === 'pickover' ? PICKOVER_DISPLAY_SCALE
@@ -488,6 +562,8 @@ export class PieceView {
           : chaoticFlowDisplay ? chaoticFlowDisplay.scale
           : polynomialCDisplay ? polynomialCDisplay.scale
           : polynomialFuncDisplay ? polynomialFuncDisplay.scale
+          : polynomialADisplay ? polynomialADisplay.scale
+          : polynomialBDisplay ? polynomialBDisplay.scale
           : 1;
         this.liveAttractor.points.scale.setScalar(scale);
         this.liveAttractor.points.position.set(a.x, a.y, 8 - scale * centerZ);
