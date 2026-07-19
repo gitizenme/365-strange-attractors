@@ -13,6 +13,7 @@ describe('renderPiecePage', () => {
     expect(html).toContain('src="/images/1024/042-spirality.jpg"');
     expect(html).toContain('alt="Spirality — strange attractor, day 42 of 365, 2010"');
     expect(html).toContain('src="/assets/app.js"');
+    expect(html).toContain('href="/assets/index.css"'); // must match vite's actual build output name
   });
   it('escapes html in titles', () => {
     expect(renderPiecePage({ ...art, title: 'A<B&C' })).toContain('A&lt;B&amp;C');
