@@ -3,3 +3,9 @@ html, body { height: 100%; background: #06070a; color: #cfd3dc; font-family: Geo
 #gl { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
 #overlay { position: fixed; inset: 0; pointer-events: none; }
 #overlay > * { pointer-events: auto; }
+
+.sprite-label {
+  position: absolute; top: 0; left: 0; font-size: 12px; letter-spacing: 0.06em;
+  color: #9aa1b0; text-shadow: 0 1px 3px #000; white-space: nowrap; pointer-events: none;
+  transition: opacity 0.2s;
+}
