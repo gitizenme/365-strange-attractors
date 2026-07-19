@@ -22,6 +22,13 @@ html, body { height: 100%; background: #06070a; color: #cfd3dc; font-family: Geo
   gap: 12px; background: rgba(4,5,8,0.82); transition: opacity 0.35s; opacity: 1;
 }
 #overlay > .piece.hidden { opacity: 0; pointer-events: none; }
+/* While a live attractor is rendering behind the piece, let drag/wheel input pass through this
+   backdrop to the #gl canvas underneath (so bindOrbitEvents' canvas listeners receive it), and
+   only keep the nav/close buttons clickable. Selector needs to match #overlay > * { pointer-events:
+   auto; } above in specificity (ID + class) to actually win — a bare `.piece.live-active` rule
+   loses to that ID-scoped rule regardless of source order. */
+#overlay > .piece.live-active { pointer-events: none; }
+#overlay > .piece.live-active .piece-nav, #overlay > .piece.live-active .piece-close { pointer-events: auto; }
 .piece figure { max-width: min(84vw, 1100px); text-align: center; }
 .piece img { max-width: 100%; max-height: 82vh; box-shadow: 0 8px 60px rgba(0,0,0,0.8); }
 .piece figcaption { margin-top: 14px; font-size: 14px; letter-spacing: 0.08em; color: #9aa1b0; }
@@ -35,6 +42,11 @@ html, body { height: 100%; background: #06070a; color: #cfd3dc; font-family: Geo
 #index-toggle { position: absolute; top: 16px; right: 96px; background: rgba(20,24,32,0.7);
   color: #cfd3dc; border: 1px solid #333a48; padding: 6px 14px; border-radius: 16px;
   font: inherit; font-size: 13px; cursor: pointer; }
+
+#hide-image-toggle { position: absolute; bottom: 16px; right: 16px; background: rgba(20,24,32,0.7);
+  color: #cfd3dc; border: 1px solid #333a48; padding: 6px 14px; border-radius: 16px;
+  font: inherit; font-size: 13px; cursor: pointer; display: none; }
+.piece.hide-static picture { opacity: 0; }
 
 .indexview {
   position: absolute; inset: 0; overflow-y: auto; background: rgba(4,5,8,0.94);

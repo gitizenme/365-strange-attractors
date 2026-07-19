@@ -1,5 +1,12 @@
+import * as THREE from 'three';
 import type { Artwork } from './data';
 import { imageUrl, dayToDate } from './data';
+import { getFamily } from './attractor/families';
+import { LiveAttractor } from './attractor/gpgpu';
+import { pickTier } from './attractor/tiers';
+import { initialOrbitState, applyOrbitDrag, applyOrbitZoom, orbitCameraPosition, type OrbitState } from './attractor/orbit';
+import type { Attractor } from './data';
+import type { Controls } from './controls';
 
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 
@@ -12,6 +19,16 @@ export function captionFor(a: { day: number; title: string }): string {
   return `${String(a.day).padStart(3, '0')}/365 · ${a.title} · ${MONTHS[month - 1]} ${date}, 2010`;
 }
 
+export interface LiveDeps {
+  attractors: Attractor[];
+  renderer: THREE.WebGLRenderer;
+  liveScene: THREE.Scene;
+  camera: THREE.PerspectiveCamera;
+  canvas: HTMLCanvasElement;
+  controls: Controls;
+  hideImageBtn: HTMLButtonElement;
+}
+
 export class PieceView {
   private root: HTMLDivElement;
   private img: HTMLImageElement;
@@ -21,8 +38,16 @@ export class PieceView {
   private bySlug: Map<string, Artwork>;
   private byDay: Map<number, Artwork>;
 
+  private live_!: LiveDeps;
+  private attractorsByDay = new Map<number, Attractor>();
+  private tier: 256 | 1024 | 2048 | null = null;
+  private liveAttractor: LiveAttractor | null = null;
+  private orbit: OrbitState | null = null;
+  private orbitDragging = false;
+  private orbitLast = { x: 0, y: 0 };
+
   constructor(private overlay: HTMLElement, artworks: Artwork[],
-              private onNavigate: (slug: string) => void, private onClose: () => void) {
+              private onNavigate: (slug: string) => void, private onClose: () => void, live: LiveDeps) {
     this.bySlug = new Map(artworks.map(a => [a.slug, a]));
     this.byDay = new Map(artworks.map(a => [a.day, a]));
     this.root = document.createElement('div');
@@ -53,6 +78,34 @@ export class PieceView {
       if (e.key === 'ArrowLeft') this.nav(-1);
       if (e.key === 'ArrowRight') this.nav(1);
     });
+
+    this.live_ = live;
+    this.attractorsByDay = new Map(live.attractors.map(a => [a.day, a]));
+    this.tier = pickTier({ webgl2: live.renderer.capabilities.isWebGL2, isMobile: /Mobi|Android/i.test(navigator.userAgent) });
+    this.bindOrbitEvents();
+  }
+
+  private bindOrbitEvents(): void {
+    const canvas = this.live_.canvas;
+    canvas.addEventListener('pointerdown', e => {
+      if (!this.liveAttractor) return;
+      if ((e.target as HTMLElement).closest('button')) return;
+      this.orbitDragging = true;
+      this.orbitLast = { x: e.clientX, y: e.clientY };
+    });
+    addEventListener('pointermove', e => {
+      if (!this.liveAttractor || !this.orbitDragging || !this.orbit) return;
+      const dx = e.clientX - this.orbitLast.x;
+      const dy = e.clientY - this.orbitLast.y;
+      this.orbit = applyOrbitDrag(this.orbit, dx, dy);
+      this.orbitLast = { x: e.clientX, y: e.clientY };
+    });
+    addEventListener('pointerup', () => { this.orbitDragging = false; });
+    canvas.addEventListener('wheel', e => {
+      if (!this.liveAttractor || !this.orbit) return;
+      e.preventDefault();
+      this.orbit = applyOrbitZoom(this.orbit, e.deltaY);
+    }, { passive: false });
   }
 
   private nav(dir: 1 | -1): void {
@@ -81,8 +134,89 @@ export class PieceView {
       const n = this.byDay.get(neighborDay(a.day, dir))!;
       new Image().src = imageUrl(n.slug, 1024, 'jpg');
     }
+
+    this.liveAttractor?.dispose();
+    this.liveAttractor = null;
+    const attractor = this.attractorsByDay.get(a.day);
+    const family = attractor && attractor.system !== 'static-only' ? getFamily(attractor.system) : null;
+    if (family && attractor?.params && this.tier) {
+      try {
+        this.liveAttractor = new LiveAttractor(this.live_.renderer, family, attractor.params, this.tier);
+        // LiveAttractor's own settling burst (Task 3, fixed at 150 steps) integrates only
+        // 150 * dt simulated time units. That's plenty for this dataset's typical dt (~0.03-0.2)
+        // but nowhere near enough for the smallest dt found here (e.g. 0.001, the classic-constants
+        // reference day): 150 steps only reaches the vicinity of one fixed point, and the two lobes
+        // don't visibly separate until ~20 simulated time units of chaotic mixing. Pre-warm further
+        // for ODE families so the cloud starts fully formed instead of a barely-moved dot (measured
+        // ~0.02ms/iteration, so even the capped worst case here is a sub-second one-time pause).
+        if (!family.isDiscreteMap) {
+          const dt = attractor.params[attractor.params.length - 1];
+          if (dt > 0) {
+            const extraSteps = Math.min(20000, Math.ceil(20 / dt));
+            for (let i = 0; i < extraSteps; i++) this.liveAttractor.compute();
+          }
+        }
+        // The raw point cloud is generated in its own local attractor-space coordinates and needs
+        // translating into this artwork's constellation position so it lines up with where the
+        // camera flew to/orbits (x, y). For Lorenz specifically, the two chaotic lobes straddle
+        // fixed points at local z ~= rho - 1 (not local z ~= 0) — e.g. rho=28 centers near z=27 —
+        // so translating only by (a.x, a.y, 0) leaves the cloud sitting behind the orbit camera
+        // (which parks in front of z = 8, see below) and it never becomes visible. Recenter in z
+        // so the cloud's natural cluster lines up with the orbit target instead. Lorenz's natural
+        // coordinate scale (fixed points ~8.5 units apart, full chaotic spread tens of units) is
+        // also much larger than orbit.ts's fixed default view radius (10, clamped to [3, 30]), so
+        // scale the cloud down to fit comfortably within that default framing.
+        const LORENZ_DISPLAY_SCALE = 0.2;
+        const centerZ = attractor.system === 'lorenz' && attractor.params.length >= 2 ? attractor.params[1] - 1 : 0;
+        const scale = attractor.system === 'lorenz' ? LORENZ_DISPLAY_SCALE : 1;
+        this.liveAttractor.points.scale.setScalar(scale);
+        this.liveAttractor.points.position.set(a.x, a.y, 8 - scale * centerZ);
+        this.live_.liveScene.add(this.liveAttractor.points);
+        this.orbit = initialOrbitState({ x: a.x, y: a.y, z: 8 }); // a.x/a.y = this piece's constellation position; z matches Phase 1's flyTo z target
+        this.live_.controls.setEnabled(false);
+      } catch (err) {
+        console.error('live attractor init failed, falling back to static', err);
+        this.liveAttractor = null;
+        this.orbit = null;
+      }
+    }
+    this.live_.hideImageBtn.style.display = this.liveAttractor ? 'block' : 'none';
+    // The piece backdrop (Phase 1) is a full-viewport pointer-events:auto element that sits on top
+    // of the #gl canvas the whole time the piece is open (it needs to catch clicks on empty space
+    // to close, per Phase 1's "click outside figure to close"). That would swallow every drag/wheel
+    // event aimed at orbiting the live attractor before it ever reaches bindOrbitEvents' canvas
+    // listeners. Toggle a class that makes the backdrop pass events through to the canvas whenever
+    // a live attractor is showing, leaving only the actual buttons (nav/close) clickable — see
+    // the `.piece.live-active` rules in style.css.
+    this.root.classList.toggle('live-active', !!this.liveAttractor);
   }
 
-  close(): void { this.root.classList.add('hidden'); this.current = null; }
+  close(): void {
+    this.liveAttractor?.dispose();
+    this.liveAttractor = null;
+    this.orbit = null;
+    this.live_.controls.setEnabled(true);
+    this.live_.hideImageBtn.style.display = 'none';
+    this.root.classList.remove('live-active');
+    this.root.classList.add('hidden');
+    this.current = null;
+    // The orbit camera (render()) mutates the shared camera's rotation via lookAt() every frame
+    // while a live attractor is open. Controls' flat pan/zoom math (screenToWorld, drag, wheel-zoom)
+    // assumes an axis-aligned camera looking straight down -Z with no roll/tilt — reset the rotation
+    // here so the constellation view isn't left skewed and pan/zoom keep working correctly.
+    this.live_.camera.quaternion.identity();
+  }
+
   isOpen(): boolean { return this.current !== null; }
+
+  toggleHideStatic(): void { this.root.classList.toggle('hide-static'); }
+
+  render(): void {
+    if (this.liveAttractor && this.orbit) {
+      const pos = orbitCameraPosition(this.orbit);
+      this.live_.camera.position.set(pos.x, pos.y, pos.z);
+      this.live_.camera.lookAt(this.orbit.target.x, this.orbit.target.y, this.orbit.target.z);
+    }
+    this.liveAttractor?.compute();
+  }
 }

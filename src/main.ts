@@ -1,4 +1,5 @@
-import { loadData } from './data';
+import * as THREE from 'three';
+import { loadData, loadAttractors } from './data';
 import { Constellation } from './constellation';
 import { Controls } from './controls';
 import { nearestSprite } from './picking';
@@ -9,7 +10,7 @@ import { IndexView } from './indexview';
 import { Minimap } from './minimap';
 
 async function boot() {
-  const { artworks, atlas } = await loadData();
+  const [{ artworks, atlas }, attractors] = await Promise.all([loadData(), loadAttractors()]);
   const canvas = document.getElementById('gl') as HTMLCanvasElement;
   let con: Constellation;
   try {
@@ -59,11 +60,21 @@ async function boot() {
     canvas.style.cursor = hovered !== null ? 'pointer' : 'grab';
   });
 
+  const hideImageBtn = document.createElement('button');
+  hideImageBtn.id = 'hide-image-toggle';
+  hideImageBtn.textContent = 'Hide Image';
+
+  const liveScene = new THREE.Scene();
+
   const bySlug = new Map(artworks.map((a, i) => [a.slug, i]));
   const piece = new PieceView(overlay,
     artworks,
     slug => router.go({ kind: 'day', slug }),
-    () => router.go({ kind: 'home' }));
+    () => router.go({ kind: 'home' }),
+    { attractors, renderer: con.renderer, liveScene, camera: con.camera, canvas, controls, hideImageBtn });
+  // appended after piece.root so it paints on top of the piece backdrop while open (same pattern as indexBtn)
+  overlay.appendChild(hideImageBtn);
+  hideImageBtn.addEventListener('click', () => piece.toggleHideStatic());
 
   const index = new IndexView(overlay, artworks, slug => {
     index.close();
@@ -106,6 +117,12 @@ async function boot() {
     const dt = Math.min(0.05, (t - lastT) / 1000); lastT = t;
     controls.update(dt);
     con.render(t / 1000);
+    if (piece.isOpen()) {
+      piece.render();
+      con.renderer.autoClear = false;
+      con.renderer.render(liveScene, con.camera);
+      con.renderer.autoClear = true;
+    }
     if (!piece.isOpen() && !index.isOpen()) {
       labels.update(con.camera, canvas, i => con.positionOf(i));
       minimap.update(con.camera, canvas, i => con.positionOf(i));

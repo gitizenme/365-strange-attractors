@@ -38,17 +38,20 @@ export class Controls {
   private flying = false;
   private reduced: boolean;
   private ac = new AbortController();
+  private enabled = true;
 
   constructor(private canvas: HTMLCanvasElement, private camera: THREE.PerspectiveCamera,
               opts: { reducedMotion?: boolean } = {}) {
     this.reduced = opts.reducedMotion ?? false;
     const s = this.ac.signal;
     canvas.addEventListener('pointerdown', e => {
+      if (!this.enabled) return;
       canvas.setPointerCapture(e.pointerId);
       this.dragging = true; this.moved = 0; this.vel = { x: 0, y: 0 };
       this.last = { x: e.clientX, y: e.clientY };
     }, { signal: s });
     canvas.addEventListener('pointermove', e => {
+      if (!this.enabled) return;
       if (!this.dragging || this.flying) return;
       const wpp = worldPerPixel(this.camera, canvas.clientHeight);
       const dx = (e.clientX - this.last.x), dy = (e.clientY - this.last.y);
@@ -60,10 +63,12 @@ export class Controls {
       this.clamp();
     }, { signal: s });
     canvas.addEventListener('pointerup', e => {
+      if (!this.enabled) return;
       this.dragging = false;
       if (this.moved < 5) { this.vel = { x: 0, y: 0 }; this.onTap?.(e.clientX, e.clientY); }
     }, { signal: s });
     canvas.addEventListener('wheel', e => {
+      if (!this.enabled) return;
       e.preventDefault();
       if (this.flying) return;
       const factor = Math.exp(e.deltaY * 0.0015);
@@ -72,6 +77,8 @@ export class Controls {
       Object.assign(this.camera.position, clampCamera(p, 60, 4, 140));
     }, { signal: s, passive: false });
   }
+
+  setEnabled(enabled: boolean): void { this.enabled = enabled; }
 
   screenToWorld(sx: number, sy: number): { x: number; y: number } {
     const wpp = worldPerPixel(this.camera, this.canvas.clientHeight);

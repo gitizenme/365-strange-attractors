@@ -29,7 +29,7 @@ void main() { gl_FragColor = texture2D(uAtlas, vUv); }`;
 
 export class Constellation {
   readonly camera: THREE.PerspectiveCamera;
-  private renderer: THREE.WebGLRenderer;
+  readonly renderer: THREE.WebGLRenderer;
   private scene = new THREE.Scene();
   private material: THREE.ShaderMaterial;
   private scaleAttr: THREE.InstancedBufferAttribute;
