@@ -5,6 +5,7 @@ import { nearestSprite } from './picking';
 import { Labels } from './labels';
 import { Router } from './router';
 import { PieceView } from './piece';
+import { IndexView } from './indexview';
 
 async function boot() {
   document.querySelector('.static-piece')?.remove();
@@ -44,7 +45,23 @@ async function boot() {
     slug => router.go({ kind: 'day', slug }),
     () => router.go({ kind: 'home' }));
 
+  const index = new IndexView(overlay, artworks, slug => {
+    index.close();
+    router.go({ kind: 'day', slug });
+  });
+  const indexBtn = document.createElement('button');
+  indexBtn.id = 'index-toggle';
+  indexBtn.textContent = 'Index';
+  overlay.appendChild(indexBtn);
+  indexBtn.addEventListener('click', () => router.go({ kind: 'index' }));
+  addEventListener('keydown', e => {
+    if (e.key === '/' && !piece.isOpen() && !index.isOpen()) { e.preventDefault(); router.go({ kind: 'index' }); }
+    if (e.key === 'Escape' && index.isOpen()) router.go({ kind: 'home' });
+  });
+
   const router = new Router(async r => {
+    if (r.kind === 'index') { piece.close(); index.open(); return; }
+    index.close();
     if (r.kind === 'day' && bySlug.has(r.slug)) {
       const i = bySlug.get(r.slug)!;
       const p = con.positionOf(i);
