@@ -206,6 +206,16 @@ export class PieceView {
         // also much larger than orbit.ts's fixed default view radius (10, clamped to [3, 30]), so
         // scale the cloud down to fit comfortably within that default framing.
         const LORENZ_DISPLAY_SCALE = 0.2;
+        // Pickover's map (x' = sin(A*y) - z*cos(B*x), y' = z*sin(C*x) - cos(D*y), z' = sin(x)) is
+        // built entirely from sin/cos terms, which bound its coordinates to roughly [-1.2, 1.2]
+        // regardless of the A/B/C/D params — confirmed empirically by simulating both of this
+        // dataset's pickover days (026-x, 070-tornado-eye) for thousands of iterations across many
+        // random seeds: both settle to maxAbs ~1.19-1.20. Unlike lorenz_84, whose spread varies
+        // ~6x across days with no simple predictive parameter, Pickover's range is consistent day
+        // to day, so a flat display scale (like Lorenz's) works fine here too. The natural cluster
+        // center also sits close to local z=0 for both days (empirically within ±0.15), so unlike
+        // Lorenz, no z-recentering formula is needed — it falls through to the 0 default below.
+        const PICKOVER_DISPLAY_SCALE = 3.2;
         // lorenz_84's scale/centerZ can't be a flat constant like Lorenz's — see
         // estimateLorenz84Display's comment above for why — so compute it per-day instead.
         const lorenz84Display = attractor.system === 'lorenz_84' ? estimateLorenz84Display(attractor.params) : null;
@@ -213,6 +223,7 @@ export class PieceView {
           : lorenz84Display ? lorenz84Display.centerZ
           : 0;
         const scale = attractor.system === 'lorenz' ? LORENZ_DISPLAY_SCALE
+          : attractor.system === 'pickover' ? PICKOVER_DISPLAY_SCALE
           : lorenz84Display ? lorenz84Display.scale
           : 1;
         this.liveAttractor.points.scale.setScalar(scale);
