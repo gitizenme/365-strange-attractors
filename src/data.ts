@@ -4,12 +4,20 @@ export interface Artwork {
 }
 export interface Atlas { tile: number; cols: number; rows: number; index: Record<string, number> }
 
+export interface Attractor {
+  day: number; slug: string; system: string; params?: number[]; iterations?: number;
+}
+
 export async function loadData(): Promise<{ artworks: Artwork[]; atlas: Atlas }> {
   const [artworks, atlas] = await Promise.all([
     fetch('/data/artworks.json').then(r => r.json()),
     fetch('/data/atlas.json').then(r => r.json()),
   ]);
   return { artworks, atlas };
+}
+
+export async function loadAttractors(): Promise<Attractor[]> {
+  return fetch('/data/attractors.json').then(r => r.json());
 }
 
 export function imageUrl(slug: string, size: 256 | 1024 | 2000, ext: 'avif' | 'webp' | 'jpg'): string {

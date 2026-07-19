@@ -3,6 +3,7 @@ import { join, resolve } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { buildDays } from './manifest.mjs';
 import { makeDerivatives, buildAtlas } from './images.mjs';
+import { buildAttractors } from './attractors.mjs';
 
 const ARCHIVE = resolve('..');
 const OUT = resolve('public');
@@ -52,3 +53,8 @@ for (const a of artworks) {
   writeFileSync(join(dir, 'index.html'), renderPiecePage(a));
 }
 console.log(`pages: ${artworks.length} written`);
+
+const attractors = buildAttractors(days, ARCHIVE, { readdirSync, readFileSync });
+writeFileSync(join(OUT, 'data', 'attractors.json'), JSON.stringify(attractors));
+const inScope = attractors.filter(a => a.system !== 'static-only').length;
+console.log(`attractors.json: ${attractors.length} entries, ${inScope} in-scope`);
