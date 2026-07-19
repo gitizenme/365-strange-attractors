@@ -3,8 +3,11 @@ import { Constellation } from './constellation';
 import { Controls } from './controls';
 import { nearestSprite } from './picking';
 import { Labels } from './labels';
+import { Router } from './router';
+import { PieceView } from './piece';
 
 async function boot() {
+  document.querySelector('.static-piece')?.remove();
   const { artworks, atlas } = await loadData();
   const canvas = document.getElementById('gl') as HTMLCanvasElement;
   const con = new Constellation(canvas, artworks, atlas);
@@ -34,6 +37,32 @@ async function boot() {
     con.setHover(hovered);
     canvas.style.cursor = hovered !== null ? 'pointer' : 'grab';
   });
+
+  const bySlug = new Map(artworks.map((a, i) => [a.slug, i]));
+  const piece = new PieceView(overlay,
+    artworks,
+    slug => router.go({ kind: 'day', slug }),
+    () => router.go({ kind: 'home' }));
+
+  const router = new Router(async r => {
+    if (r.kind === 'day' && bySlug.has(r.slug)) {
+      const i = bySlug.get(r.slug)!;
+      const p = con.positionOf(i);
+      await controls.flyTo(p.x, p.y, 8, 0.9);
+      piece.open(r.slug);
+    } else {
+      piece.close();
+    }
+  });
+
+  controls.onTap = (sx, sy) => {
+    if (piece.isOpen()) return;
+    const w = controls.screenToWorld(sx, sy);
+    const i = nearestSprite(w, k => con.positionOf(k), artworks.length, 1.2);
+    if (i !== null) router.go({ kind: 'day', slug: artworks[i].slug });
+  };
+
+  router.go(router.current()); // honor deep links like /day/042-spirality/
 
   let lastT = 0;
   const loop = (t: number) => {

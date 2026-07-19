@@ -16,3 +16,18 @@ html, body { height: 100%; background: #06070a; color: #cfd3dc; font-family: Geo
   font: inherit; font-size: 13px; cursor: pointer;
 }
 #time-toggle[aria-pressed="true"] { background: #cfd3dc; color: #10131a; }
+
+.piece {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  gap: 12px; background: rgba(4,5,8,0.82); transition: opacity 0.35s; opacity: 1;
+}
+#overlay > .piece.hidden { opacity: 0; pointer-events: none; }
+.piece figure { max-width: min(84vw, 1100px); text-align: center; }
+.piece img { max-width: 100%; max-height: 82vh; box-shadow: 0 8px 60px rgba(0,0,0,0.8); }
+.piece figcaption { margin-top: 14px; font-size: 14px; letter-spacing: 0.08em; color: #9aa1b0; }
+.piece-nav, .piece-close {
+  background: none; border: none; color: #9aa1b0; font-size: 40px; cursor: pointer; padding: 12px;
+}
+.piece-nav:hover, .piece-close:hover { color: #fff; }
+.piece-close { position: absolute; top: 8px; right: 14px; font-size: 30px; }
+@media (max-width: 700px) { .piece-nav { position: absolute; bottom: 8px; } .piece-nav.prev { left: 20vw; } .piece-nav.next { right: 20vw; } }
