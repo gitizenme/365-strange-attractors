@@ -15,7 +15,7 @@ export function renderPiecePage(a) {
 <meta property="og:type" content="article" />
 <meta property="og:image" content="/images/1024/${a.slug}.jpg" />
 <meta name="description" content="${t}, a strange attractor created on day ${a.day} of 365 in 2010." />
-<link rel="stylesheet" href="/assets/style.css" />
+<link rel="stylesheet" href="/assets/index.css" />
 </head>
 <body>
 <canvas id="gl"></canvas>
