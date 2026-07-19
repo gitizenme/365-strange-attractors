@@ -27,6 +27,20 @@ export function captionFor(a: { day: number; title: string }): string {
   return `${String(a.day).padStart(3, '0')}/365 · ${a.title} · ${MONTHS[month - 1]} ${date}, 2010`;
 }
 
+// Deliberately conservative: per the spec's adjacency finding, only 6 day-pairs in the whole
+// archive are same-family adjacent (share a `system` and neither is 'static-only'), so those
+// are the only ones worth the parameter-interpolation morph; everything else — different
+// family, either side static-only or unknown — falls back to the plain dissolve (open()'s
+// existing dispose/reconstruct cycle).
+export function transitionKind(
+  current: { day: number; system: string } | null,
+  next: { day: number; system: string } | null,
+): 'morph' | 'dissolve' {
+  if (!current || !next) return 'dissolve';
+  if (current.system === 'static-only' || next.system === 'static-only') return 'dissolve';
+  return current.system === next.system ? 'morph' : 'dissolve';
+}
+
 // Lorenz-84's natural coordinate range varies a lot from day to day (empirically, half-extents
 // across this dataset's lorenz_84 days range from ~3 to ~20 world units depending on a/b/F/G),
 // unlike classic Lorenz where a single flat display scale works because rho is the only param
@@ -167,6 +181,44 @@ export class PieceView {
   private nav(dir: 1 | -1): void {
     if (!this.current) return;
     const next = this.byDay.get(neighborDay(this.current.day, dir))!;
+    const curAttr = this.attractorsByDay.get(this.current.day);
+    const nextAttr = this.attractorsByDay.get(next.day);
+    const kind = transitionKind(
+      curAttr ? { day: curAttr.day, system: curAttr.system } : null,
+      nextAttr ? { day: nextAttr.day, system: nextAttr.system } : null,
+    );
+    if (kind === 'morph' && this.liveAttractor && nextAttr?.params) {
+      // Capture the live instance we're morphing so a stale rAF tick can never touch a
+      // *different* (disposed-and-replaced) instance — see the guard inside step() below.
+      const morphing = this.liveAttractor;
+      morphing.setMorphTarget(nextAttr.params, 0);
+      const start = performance.now();
+      const step = () => {
+        // open()/close() may have already disposed this exact instance and swapped in a new
+        // one (or none) for the next day before this tween finished — e.g. a rapid double-tap
+        // of the nav arrow. Bail rather than mutate a disposed GPUComputationRenderer.
+        if (this.liveAttractor !== morphing) return;
+        const t = Math.min(1, (performance.now() - start) / 800);
+        morphing.setMorphTarget(nextAttr.params!, t);
+        if (t < 1) requestAnimationFrame(step);
+        else { morphing.setParams(nextAttr.params!); morphing.setMorphTarget(null, 0); }
+      };
+      requestAnimationFrame(step);
+    }
+    // main.ts's router awaits controls.flyTo(...) (tweening the shared camera's position over
+    // ~0.9s) BEFORE calling piece.open(next.slug) — open() isn't called synchronously here, so
+    // `this.current`/`this.liveAttractor`/`this.orbit` all still describe the *outgoing* piece
+    // for the whole flight. render() repositions the shared camera from `this.orbit` every
+    // frame via its own lookAt() (Task 4/8), which — left as-is — fights flyTo's own per-frame
+    // position tween for control of the same camera for that entire ~0.9s (Task 4's disclosed
+    // risk: two independent rAF loops writing camera.position/quaternion the same frame,
+    // ordering-dependent jitter). Clear `orbit` so render()'s `if (this.liveAttractor &&
+    // this.orbit)` guard skips the camera write for the remainder of the flight, leaving flyTo
+    // as the sole owner of the camera; the outgoing point cloud (and, for 'morph', its running
+    // tween) keeps simulating/rendering in place, uncoupled from the camera, which reads as the
+    // dissolve/morph "left behind" as the view moves on. open() sets a fresh `orbit` for the
+    // next piece once flyTo resolves, healing this back to normal.
+    this.orbit = null;
     this.onNavigate(next.slug);
   }
 
