@@ -44,3 +44,11 @@ const artworks = days.map(d => {
 });
 writeFileSync(join(OUT, 'data', 'artworks.json'), JSON.stringify(artworks));
 console.log(`artworks.json: ${artworks.length} entries`);
+
+import { renderPiecePage } from './pages.mjs';
+for (const a of artworks) {
+  const dir = join(OUT, 'day', a.slug);
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, 'index.html'), renderPiecePage(a));
+}
+console.log(`pages: ${artworks.length} written`);
