@@ -14,6 +14,18 @@ async function boot() {
   const controls = new Controls(canvas, con.camera, { reducedMotion: reduced.matches });
 
   const overlay = document.getElementById('overlay')!;
+  const timeBtn = document.createElement('button');
+  timeBtn.id = 'time-toggle';
+  timeBtn.textContent = 'Time';
+  timeBtn.setAttribute('aria-pressed', 'false');
+  overlay.appendChild(timeBtn);
+  let timeMode = false;
+  timeBtn.addEventListener('click', () => {
+    timeMode = !timeMode;
+    timeBtn.setAttribute('aria-pressed', String(timeMode));
+    con.setTimeMix(timeMode ? 1 : 0);
+  });
+
   const labels = new Labels(overlay, artworks);
   let hovered: number | null = null;
   canvas.addEventListener('pointermove', e => {

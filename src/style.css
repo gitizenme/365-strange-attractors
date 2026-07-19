@@ -9,3 +9,10 @@ html, body { height: 100%; background: #06070a; color: #cfd3dc; font-family: Geo
   color: #9aa1b0; text-shadow: 0 1px 3px #000; white-space: nowrap; pointer-events: none;
   transition: opacity 0.2s;
 }
+
+#time-toggle {
+  position: absolute; top: 16px; right: 16px; background: rgba(20,24,32,0.7);
+  color: #cfd3dc; border: 1px solid #333a48; padding: 6px 14px; border-radius: 16px;
+  font: inherit; font-size: 13px; cursor: pointer;
+}
+#time-toggle[aria-pressed="true"] { background: #cfd3dc; color: #10131a; }
