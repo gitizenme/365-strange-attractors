@@ -16,7 +16,7 @@ export function parseTitlesCsv(csv) {
 
 export function scanGenerated(fileNames) {
   const map = new Map();
-  for (const name of fileNames) {
+  for (const name of fileNames.sort()) {
     const m = name.match(/^(\d{3})_(.+)\.(jpe?g|png)$/i);
     if (!m) continue;
     const day = parseInt(m[1], 10);

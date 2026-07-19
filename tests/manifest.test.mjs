@@ -22,10 +22,10 @@ describe('parseTitlesCsv', () => {
 });
 
 describe('scanGenerated', () => {
-  it('maps day number to filename, keeps first match, ignores non-day files', () => {
+  it('maps day number to filename, keeps first match after sorting, ignores non-day files', () => {
     const m = scanGenerated(['001_Rose.jpg', '002_Event_Horizon.jpg', 'notes.txt', '002_Alt.jpg']);
     expect(m.get(1)).toBe('001_Rose.jpg');
-    expect(m.get(2)).toBe('002_Event_Horizon.jpg');
+    expect(m.get(2)).toBe('002_Alt.jpg');
     expect(m.size).toBe(2);
   });
 });
