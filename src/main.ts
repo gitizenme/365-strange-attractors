@@ -68,7 +68,7 @@ async function boot() {
   brightnessSlider.id = 'brightness-slider';
   brightnessSlider.type = 'range';
   brightnessSlider.min = '0.4';
-  brightnessSlider.max = '3';
+  brightnessSlider.max = '6';
   brightnessSlider.step = '0.1';
   brightnessSlider.setAttribute('aria-label', 'Live attractor brightness');
 
@@ -125,7 +125,7 @@ async function boot() {
   const loop = (t: number) => {
     const dt = Math.min(0.05, (t - lastT) / 1000); lastT = t;
     controls.update(dt);
-    con.render(t / 1000);
+    con.render(t / 1000, piece.isShowingLiveFullscreen());
     if (piece.isOpen()) {
       piece.render(dt);
       con.renderer.autoClear = false;
