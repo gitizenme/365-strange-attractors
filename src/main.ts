@@ -64,6 +64,14 @@ async function boot() {
   hideImageBtn.id = 'hide-image-toggle';
   hideImageBtn.textContent = 'Hide Image';
 
+  const brightnessSlider = document.createElement('input');
+  brightnessSlider.id = 'brightness-slider';
+  brightnessSlider.type = 'range';
+  brightnessSlider.min = '0.4';
+  brightnessSlider.max = '3';
+  brightnessSlider.step = '0.1';
+  brightnessSlider.setAttribute('aria-label', 'Live attractor brightness');
+
   const liveScene = new THREE.Scene();
 
   const bySlug = new Map(artworks.map((a, i) => [a.slug, i]));
@@ -71,9 +79,10 @@ async function boot() {
     artworks,
     slug => router.go({ kind: 'day', slug }),
     () => router.go({ kind: 'home' }),
-    { attractors, renderer: con.renderer, liveScene, camera: con.camera, canvas, controls, hideImageBtn });
+    { attractors, renderer: con.renderer, liveScene, camera: con.camera, canvas, controls, hideImageBtn, brightnessSlider });
   // appended after piece.root so it paints on top of the piece backdrop while open (same pattern as indexBtn)
   overlay.appendChild(hideImageBtn);
+  overlay.appendChild(brightnessSlider);
   hideImageBtn.addEventListener('click', () => piece.toggleHideStatic());
 
   const index = new IndexView(overlay, artworks, slug => {

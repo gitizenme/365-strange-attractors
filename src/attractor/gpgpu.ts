@@ -119,6 +119,8 @@ export class LiveAttractor {
   private positionVariable: ReturnType<GPUComputationRenderer['addVariable']>;
   private material: THREE.ShaderMaterial;
   private tier: Tier;
+  private basePointSize: number;
+  private baseAlpha: number;
 
   constructor(renderer: THREE.WebGLRenderer, family: AttractorFamily, params: number[], tier: Tier, seed?: SeedSpec, tint?: THREE.Color) {
     this.tier = tier;
@@ -161,6 +163,8 @@ export class LiveAttractor {
     const BASE_MULTIPLIER = 1.7;
     const TARGET_INK = 1024 * 1024 * 1.6 * 1.6 * 0.5 * BASE_MULTIPLIER;
     const alpha = Math.min(1.0, Math.max(0.12, TARGET_INK / (n * pointSize * pointSize)));
+    this.basePointSize = pointSize;
+    this.baseAlpha = alpha;
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(n * 3), 3));
     this.material = new THREE.ShaderMaterial({
@@ -183,6 +187,16 @@ export class LiveAttractor {
     this.positionVariable.material.uniforms.uMorphMix.value = mix;
   }
   setPerturbation(amount: number): void { this.positionVariable.material.uniforms.uPerturbation.value = amount; }
+
+  // User-facing brightness control (see the piece-view slider): alpha alone has a hard ceiling —
+  // once every point is fully opaque at its center, more alpha does nothing — so above that
+  // ceiling this also grows point size, which has no such limit, to keep the slider's full range
+  // visibly effective even on tiers (like mobile's 256) that are already alpha-maxed by default.
+  setBrightness(factor: number): void {
+    const f = Math.max(0.1, factor);
+    this.material.uniforms.uAlpha.value = Math.min(1.0, this.baseAlpha * f);
+    this.material.uniforms.uPointSize.value = this.basePointSize * Math.max(1, Math.sqrt(f));
+  }
 
   compute(): void {
     this.gpuCompute.compute();
