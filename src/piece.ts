@@ -310,6 +310,13 @@ export interface LiveDeps {
   canvas: HTMLCanvasElement;
   controls: Controls;
   hideImageBtn: HTMLButtonElement;
+  brightnessSlider: HTMLInputElement;
+}
+
+const BRIGHTNESS_KEY = 'la-brightness';
+function loadBrightness(): number {
+  const v = Number(localStorage.getItem(BRIGHTNESS_KEY));
+  return Number.isFinite(v) && v > 0 ? v : 1;
 }
 
 export class PieceView {
@@ -331,6 +338,7 @@ export class PieceView {
   private orbitMoved = 0;
   private disturbHeld = false;
   private disturbAmount = 0;
+  private brightness = loadBrightness();
 
   constructor(private overlay: HTMLElement, artworks: Artwork[],
               private onNavigate: (slug: string) => void, private onClose: () => void, live: LiveDeps) {
@@ -365,6 +373,12 @@ export class PieceView {
       if (e.key === 'ArrowRight') this.nav(1);
     });
     this.live_ = live;
+    live.brightnessSlider.value = String(this.brightness);
+    live.brightnessSlider.addEventListener('input', () => {
+      this.brightness = Number(live.brightnessSlider.value);
+      localStorage.setItem(BRIGHTNESS_KEY, String(this.brightness));
+      this.liveAttractor?.setBrightness(this.brightness);
+    });
     this.attractorsByDay = new Map(live.attractors.map(a => [a.day, a]));
     this.tier = pickTier({
       webgl2: live.renderer.capabilities.isWebGL2,
@@ -580,6 +594,7 @@ export class PieceView {
           : polynomialADisplay ? polynomialADisplay.scale
           : polynomialBDisplay ? polynomialBDisplay.scale
           : 1;
+        this.liveAttractor.setBrightness(this.brightness);
         this.liveAttractor.points.scale.setScalar(scale);
         this.liveAttractor.points.position.set(a.x, a.y, 8 - scale * centerZ);
         this.live_.liveScene.add(this.liveAttractor.points);
@@ -592,6 +607,7 @@ export class PieceView {
       }
     }
     this.live_.hideImageBtn.style.display = this.liveAttractor ? 'block' : 'none';
+    this.live_.brightnessSlider.style.display = this.liveAttractor ? 'block' : 'none';
     // The piece backdrop (Phase 1) is a full-viewport pointer-events:auto element that sits on top
     // of the #gl canvas the whole time the piece is open (it needs to catch clicks on empty space
     // to close, per Phase 1's "click outside figure to close"). That would swallow every drag/wheel
@@ -610,6 +626,7 @@ export class PieceView {
     this.disturbAmount = 0;
     this.live_.controls.setEnabled(true);
     this.live_.hideImageBtn.style.display = 'none';
+    this.live_.brightnessSlider.style.display = 'none';
     this.root.classList.remove('live-active');
     this.root.classList.add('hidden');
     this.current = null;

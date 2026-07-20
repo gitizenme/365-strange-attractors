@@ -48,6 +48,10 @@ html, body { height: 100%; background: #06070a; color: #cfd3dc; font-family: Geo
   font: inherit; font-size: 13px; cursor: pointer; display: none; }
 .piece.hide-static picture { opacity: 0; }
 
+#brightness-slider { position: absolute; bottom: 22px; right: 140px; width: 130px; height: 24px;
+  accent-color: #cfd3dc; cursor: pointer; display: none; background: rgba(20,24,32,0.7);
+  border: 1px solid #333a48; border-radius: 16px; padding: 0 10px; }
+
 .indexview {
   position: absolute; inset: 0; overflow-y: auto; background: rgba(4,5,8,0.94);
   padding: 48px min(8vw, 80px); transition: opacity 0.3s;
