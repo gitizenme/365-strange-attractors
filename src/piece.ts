@@ -366,7 +366,11 @@ export class PieceView {
     });
     this.live_ = live;
     this.attractorsByDay = new Map(live.attractors.map(a => [a.day, a]));
-    this.tier = pickTier({ webgl2: live.renderer.capabilities.isWebGL2, isMobile: /Mobi|Android/i.test(navigator.userAgent) });
+    this.tier = pickTier({
+      webgl2: live.renderer.capabilities.isWebGL2,
+      isMobile: /Mobi|Android/i.test(navigator.userAgent),
+      deviceMemoryGB: (navigator as Navigator & { deviceMemory?: number }).deviceMemory,
+    });
     this.bindOrbitEvents();
   }
 

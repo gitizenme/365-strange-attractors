@@ -33,10 +33,11 @@ void main() {
 
 const RENDER_FRAGMENT = /* glsl */ `
 varying vec3 vColor;
+uniform float uAlpha;
 void main() {
   float d = length(gl_PointCoord - vec2(0.5));
   if (d > 0.5) discard;
-  gl_FragColor = vec4(vColor, (1.0 - d * 2.0) * 0.5);
+  gl_FragColor = vec4(vColor, (1.0 - d * 2.0) * uAlpha);
 }`;
 
 function computeShader(family: AttractorFamily): string {
@@ -138,6 +139,20 @@ export class LiveAttractor {
     for (let i = 0; i < 150; i++) this.gpuCompute.compute();
 
     const n = tier * tier;
+    const pointSize = tier >= 2048 ? 1.2 : tier >= 1024 ? 1.6 : 2.2;
+    // With THREE.AdditiveBlending, each overlapping point ADDS its (color * alpha) to the
+    // framebuffer with no upper bound until the GPU clips it to white — so the cumulative
+    // brightness in dense, overlapping regions of the cloud scales with point COUNT * point
+    // AREA * alpha, not just alpha alone. A flat alpha (the original 0.5 here, tuned for the
+    // 1024 tier) means the 2048 tier's ~4x more points at ~similar area sum to several times
+    // more total "ink," saturating the whole cloud to flat white long before you can see any
+    // tint — confirmed on real hardware: desktop (2048/1024 tier) showed a fully white cloud,
+    // while mobile (256 tier, far fewer points) showed visible tint but was faint from too
+    // LITTLE cumulative ink. Scale alpha inversely with (count * pointSize^2) so total ink stays
+    // roughly constant across tiers, calibrated to the 1024 tier's original values (which looked
+    // correct) as the baseline — this both fixes desktop's white-out and mobile's faintness.
+    const TARGET_INK = 1024 * 1024 * 1.6 * 1.6 * 0.5;
+    const alpha = Math.min(0.9, Math.max(0.12, TARGET_INK / (n * pointSize * pointSize)));
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(n * 3), 3));
     this.material = new THREE.ShaderMaterial({
@@ -145,7 +160,8 @@ export class LiveAttractor {
       transparent: true, blending: THREE.AdditiveBlending, depthWrite: false,
       uniforms: {
         uPosition: { value: null }, uTexSize: { value: tier },
-        uPointSize: { value: tier >= 2048 ? 1.2 : tier >= 1024 ? 1.6 : 2.2 },
+        uPointSize: { value: pointSize },
+        uAlpha: { value: alpha },
         uTint: { value: tint ? tint.clone() : new THREE.Color(1, 1, 1) },
       },
     });
