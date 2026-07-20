@@ -119,7 +119,7 @@ export class LiveAttractor {
   private material: THREE.ShaderMaterial;
   private tier: Tier;
 
-  constructor(renderer: THREE.WebGLRenderer, family: AttractorFamily, params: number[], tier: Tier, seed?: SeedSpec) {
+  constructor(renderer: THREE.WebGLRenderer, family: AttractorFamily, params: number[], tier: Tier, seed?: SeedSpec, tint?: THREE.Color) {
     this.tier = tier;
     this.gpuCompute = new GPUComputationRenderer(tier, tier, renderer);
     const initial = this.gpuCompute.createTexture();
@@ -146,7 +146,7 @@ export class LiveAttractor {
       uniforms: {
         uPosition: { value: null }, uTexSize: { value: tier },
         uPointSize: { value: tier >= 2048 ? 1.2 : tier >= 1024 ? 1.6 : 2.2 },
-        uTint: { value: new THREE.Color(1, 1, 1) },
+        uTint: { value: tint ? tint.clone() : new THREE.Color(1, 1, 1) },
       },
     });
     this.points = new THREE.Points(geo, this.material);
