@@ -40,7 +40,11 @@ export class Constellation {
   private mix = 0; private targetMix = 0;
 
   constructor(private canvas: HTMLCanvasElement, private artworks: Artwork[], atlas: Atlas) {
-    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+    // powerPreference: some browsers (notably Safari) pick a lower-power/integrated GPU and a
+    // reduced shader float precision by default for an arbitrary page, which changes how fast
+    // additively-blended point clouds clip to white (see LiveAttractor's uAlpha comment in
+    // gpgpu.ts) — request the discrete GPU explicitly rather than leave it to a heuristic.
+    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
     this.renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
     this.camera = new THREE.PerspectiveCamera(50, 1, 0.1, 500);
     this.camera.position.set(0, 0, 120);

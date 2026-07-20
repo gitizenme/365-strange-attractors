@@ -158,6 +158,7 @@ export class LiveAttractor {
     this.material = new THREE.ShaderMaterial({
       vertexShader: RENDER_VERTEX, fragmentShader: RENDER_FRAGMENT,
       transparent: true, blending: THREE.AdditiveBlending, depthWrite: false,
+      precision: 'highp',
       uniforms: {
         uPosition: { value: null }, uTexSize: { value: tier },
         uPointSize: { value: pointSize },
