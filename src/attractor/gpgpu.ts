@@ -34,10 +34,11 @@ void main() {
 const RENDER_FRAGMENT = /* glsl */ `
 varying vec3 vColor;
 uniform float uAlpha;
+uniform float uBrightness;
 void main() {
   float d = length(gl_PointCoord - vec2(0.5));
   if (d > 0.5) discard;
-  gl_FragColor = vec4(vColor, (1.0 - d * 2.0) * uAlpha);
+  gl_FragColor = vec4(vColor * uBrightness, (1.0 - d * 2.0) * uAlpha);
 }`;
 
 function computeShader(family: AttractorFamily): string {
@@ -119,8 +120,6 @@ export class LiveAttractor {
   private positionVariable: ReturnType<GPUComputationRenderer['addVariable']>;
   private material: THREE.ShaderMaterial;
   private tier: Tier;
-  private basePointSize: number;
-  private baseAlpha: number;
 
   constructor(renderer: THREE.WebGLRenderer, family: AttractorFamily, params: number[], tier: Tier, seed?: SeedSpec, tint?: THREE.Color) {
     this.tier = tier;
@@ -163,8 +162,6 @@ export class LiveAttractor {
     const BASE_MULTIPLIER = 1.7;
     const TARGET_INK = 1024 * 1024 * 1.6 * 1.6 * 0.5 * BASE_MULTIPLIER;
     const alpha = Math.min(1.0, Math.max(0.12, TARGET_INK / (n * pointSize * pointSize)));
-    this.basePointSize = pointSize;
-    this.baseAlpha = alpha;
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(n * 3), 3));
     this.material = new THREE.ShaderMaterial({
@@ -174,6 +171,7 @@ export class LiveAttractor {
         uPosition: { value: null }, uTexSize: { value: tier },
         uPointSize: { value: pointSize },
         uAlpha: { value: alpha },
+        uBrightness: { value: 1 },
         uTint: { value: tint ? tint.clone() : new THREE.Color(1, 1, 1) },
       },
     });
@@ -188,14 +186,16 @@ export class LiveAttractor {
   }
   setPerturbation(amount: number): void { this.positionVariable.material.uniforms.uPerturbation.value = amount; }
 
-  // User-facing brightness control (see the piece-view slider): alpha alone has a hard ceiling —
-  // once every point is fully opaque at its center, more alpha does nothing — so above that
-  // ceiling this also grows point size, which has no such limit, to keep the slider's full range
-  // visibly effective even on tiers (like mobile's 256) that are already alpha-maxed by default.
+  // User-facing brightness control (see the piece-view slider). A pure color-intensity multiplier
+  // on top of the already-tuned per-tier alpha/point-size (which stay fixed) — deliberately NOT
+  // implemented by growing point size or alpha: an earlier version did that, and past a modest
+  // factor the enlarged, more-opaque points merge into a blurry, structureless blob (confirmed on
+  // real iPad hardware — it read as a flat gray wash over the whole cloud, not "brighter"). Scaling
+  // the emitted color directly instead keeps every point's footprint and coverage identical, so the
+  // cloud's fine structure stays crisp at any brightness — only the densest, most-overlapping
+  // regions clip to white sooner, exactly like overexposing a bright light source.
   setBrightness(factor: number): void {
-    const f = Math.max(0.1, factor);
-    this.material.uniforms.uAlpha.value = Math.min(1.0, this.baseAlpha * f);
-    this.material.uniforms.uPointSize.value = this.basePointSize * Math.max(1, Math.sqrt(f));
+    this.material.uniforms.uBrightness.value = Math.max(0.1, factor);
   }
 
   compute(): void {
