@@ -2,8 +2,8 @@ import * as THREE from 'three';
 
 // Below this raw saturation, a palette's "most saturated" swatch is either genuinely achromatic
 // (a handful of real days, e.g. 034-infinity, are exactly grayscale) or just JPEG chroma noise on
-// a near-gray image (checked against all 365 real palettes — a clean gap separates a s<0.09
-// noise/grayscale cluster from s>0.13 palettes with an actual dominant hue). Below the threshold
+// a near-gray image (checked against all 365 real palettes — a clean gap separates a s<=0.105
+// noise/grayscale cluster from s>=0.13 palettes with an actual dominant hue). Below the threshold
 // there's no real color to reflect, so fall back to plain white rather than fabricating a hue.
 const MIN_MEANINGFUL_SATURATION = 0.12;
 
