@@ -649,6 +649,12 @@ export class PieceView {
 
   toggleHideStatic(): void { this.root.classList.toggle('hide-static'); }
 
+  // True when the static image is hidden and a live cloud is actively showing full-brightness —
+  // main.ts's render loop uses this to skip drawing the constellation behind the cloud that frame.
+  isShowingLiveFullscreen(): boolean {
+    return !!this.liveAttractor && this.root.classList.contains('hide-static');
+  }
+
   private updateDisturb(dt: number): void {
     if (!this.liveAttractor) return;
     const target = this.disturbHeld ? 1 : 0;

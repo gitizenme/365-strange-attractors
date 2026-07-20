@@ -105,7 +105,12 @@ export class Constellation {
     this.camera.updateProjectionMatrix();
   }
 
-  render(timeSec: number): void {
+  // skipDraw: keep animation state (mix/scale easing) advancing so nothing jumps when it resumes
+  // drawing, but clear to black instead of actually drawing the constellation — used while the
+  // piece view's live attractor cloud is showing full-brightness with the static image hidden, so
+  // the constellation isn't sitting underneath competing for contrast (see style.css's
+  // `.piece.hide-static` rule, which drops the DOM backdrop's dimming overlay for the same reason).
+  render(timeSec: number, skipDraw = false): void {
     this.mix += (this.targetMix - this.mix) * 0.08;
     this.material.uniforms.uMix.value = this.mix;
     this.material.uniforms.uTime.value = timeSec;
@@ -115,6 +120,7 @@ export class Constellation {
       if (Math.abs(d) > 0.001) { this.scales[i] += d * 0.2; dirty = true; }
     }
     if (dirty) this.scaleAttr.needsUpdate = true;
+    if (skipDraw) { this.renderer.clear(); return; }
     this.renderer.render(this.scene, this.camera);
   }
 }
