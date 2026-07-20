@@ -139,20 +139,28 @@ export class LiveAttractor {
     for (let i = 0; i < 150; i++) this.gpuCompute.compute();
 
     const n = tier * tier;
-    const pointSize = tier >= 2048 ? 1.2 : tier >= 1024 ? 1.6 : 2.2;
+    // tier 256 (true mobile — phones, where the UA sniff in piece.ts actually fires) gets a much
+    // bigger point size than the ink formula below would otherwise pick: at only 65,536 points,
+    // even a fully-opaque (alpha=1) cloud leaves most pixels with zero points landing on them —
+    // confirmed on real iPhone hardware as a near-black frame with only a faint hint of color at
+    // the manifold's densest fold, unlike the 1024/2048 tiers where alpha is the limiting factor.
+    // More screen-space coverage per point is the only remaining lever once alpha is maxed out.
+    const pointSize = tier >= 2048 ? 1.2 : tier >= 1024 ? 1.6 : 3.5;
     // With THREE.AdditiveBlending, each overlapping point ADDS its (color * alpha) to the
     // framebuffer with no upper bound until the GPU clips it to white — so the cumulative
     // brightness in dense, overlapping regions of the cloud scales with point COUNT * point
-    // AREA * alpha, not just alpha alone. A flat alpha (the original 0.5 here, tuned for the
-    // 1024 tier) means the 2048 tier's ~4x more points at ~similar area sum to several times
-    // more total "ink," saturating the whole cloud to flat white long before you can see any
-    // tint — confirmed on real hardware: desktop (2048/1024 tier) showed a fully white cloud,
-    // while mobile (256 tier, far fewer points) showed visible tint but was faint from too
-    // LITTLE cumulative ink. Scale alpha inversely with (count * pointSize^2) so total ink stays
-    // roughly constant across tiers, calibrated to the 1024 tier's original values (which looked
-    // correct) as the baseline — this both fixes desktop's white-out and mobile's faintness.
-    const TARGET_INK = 1024 * 1024 * 1.6 * 1.6 * 0.5;
-    const alpha = Math.min(0.9, Math.max(0.12, TARGET_INK / (n * pointSize * pointSize)));
+    // AREA * alpha, not just alpha alone. A flat alpha meant higher tiers (far more points)
+    // summed to much more total "ink" than lower tiers at similar point area. Scale alpha
+    // inversely with (count * pointSize^2) so total ink stays roughly constant across tiers —
+    // in practice tier 256 always hits the alpha ceiling regardless (see pointSize comment
+    // above), so this mainly modulates the 1024/2048 tiers relative to each other.
+    // Note iPadOS Safari reports a desktop-class user agent (no "Mobi" token), so iPads land on
+    // the same non-mobile tier as desktop here, not the 256 mobile tier — confirmed too dim on
+    // real iPad hardware at the original baseline, so the baseline itself (not just the relative
+    // scaling) needed to go up: BASE_MULTIPLIER lifts every tier's ink together.
+    const BASE_MULTIPLIER = 1.7;
+    const TARGET_INK = 1024 * 1024 * 1.6 * 1.6 * 0.5 * BASE_MULTIPLIER;
+    const alpha = Math.min(1.0, Math.max(0.12, TARGET_INK / (n * pointSize * pointSize)));
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(n * 3), 3));
     this.material = new THREE.ShaderMaterial({
