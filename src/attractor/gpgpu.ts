@@ -139,13 +139,21 @@ export class LiveAttractor {
     for (let i = 0; i < 150; i++) this.gpuCompute.compute();
 
     const n = tier * tier;
-    const pointSize = tier >= 2048 ? 1.2 : tier >= 1024 ? 1.6 : 2.2;
+    // tier 256 (true mobile — phones, where the UA sniff in piece.ts actually fires) gets a much
+    // bigger point size than the ink formula below would otherwise pick: at only 65,536 points,
+    // even a fully-opaque (alpha=1) cloud leaves most pixels with zero points landing on them —
+    // confirmed on real iPhone hardware as a near-black frame with only a faint hint of color at
+    // the manifold's densest fold, unlike the 1024/2048 tiers where alpha is the limiting factor.
+    // More screen-space coverage per point is the only remaining lever once alpha is maxed out.
+    const pointSize = tier >= 2048 ? 1.2 : tier >= 1024 ? 1.6 : 3.5;
     // With THREE.AdditiveBlending, each overlapping point ADDS its (color * alpha) to the
     // framebuffer with no upper bound until the GPU clips it to white — so the cumulative
     // brightness in dense, overlapping regions of the cloud scales with point COUNT * point
     // AREA * alpha, not just alpha alone. A flat alpha meant higher tiers (far more points)
     // summed to much more total "ink" than lower tiers at similar point area. Scale alpha
-    // inversely with (count * pointSize^2) so total ink stays roughly constant across tiers.
+    // inversely with (count * pointSize^2) so total ink stays roughly constant across tiers —
+    // in practice tier 256 always hits the alpha ceiling regardless (see pointSize comment
+    // above), so this mainly modulates the 1024/2048 tiers relative to each other.
     // Note iPadOS Safari reports a desktop-class user agent (no "Mobi" token), so iPads land on
     // the same non-mobile tier as desktop here, not the 256 mobile tier — confirmed too dim on
     // real iPad hardware at the original baseline, so the baseline itself (not just the relative
