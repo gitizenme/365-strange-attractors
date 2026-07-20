@@ -4,6 +4,7 @@ import { imageUrl, dayToDate } from './data';
 import { getFamily } from './attractor/families';
 import { normalizeFuncParams } from './attractor/families/polynomialFunc';
 import { LiveAttractor, type SeedSpec } from './attractor/gpgpu';
+import { pickTintColor } from './attractor/palette';
 import { pickTier } from './attractor/tiers';
 import { initialOrbitState, applyOrbitDrag, applyOrbitZoom, orbitCameraPosition, type OrbitState } from './attractor/orbit';
 import type { Attractor } from './data';
@@ -521,7 +522,8 @@ export class PieceView {
         // normalizeFuncParams pads/tags the raw params into that fixed 40-slot shape; every
         // other family passes its raw params through unchanged.
         const liveParams = attractor.system === 'polynomial_func' ? normalizeFuncParams(attractor.params) : attractor.params;
-        this.liveAttractor = new LiveAttractor(this.live_.renderer, family, liveParams, this.tier, liveSeed);
+        const tint = pickTintColor(a.palette);
+        this.liveAttractor = new LiveAttractor(this.live_.renderer, family, liveParams, this.tier, liveSeed, tint);
         // LiveAttractor's own settling burst (Task 3, fixed at 150 steps) integrates only
         // 150 * dt simulated time units. That's plenty for this dataset's typical dt (~0.03-0.2)
         // but nowhere near enough for the smallest dt found here (e.g. 0.001, the classic-constants
