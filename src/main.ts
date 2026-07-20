@@ -135,6 +135,13 @@ async function boot() {
     if (!piece.isOpen() && !index.isOpen()) {
       labels.update(con.camera, canvas, i => con.positionOf(i));
       minimap.update(con.camera, canvas, i => con.positionOf(i));
+    } else {
+      // update() also stops running here, but that only freezes each label's display state where
+      // it was — any that were visible (display:block) the moment the piece/index opened stay
+      // visible with stale text/position. The piece backdrop dimmed that into invisibility before;
+      // now that hide-static drops the backdrop to transparent (see style.css) for the live cloud,
+      // stale labels show through undimmed. Explicitly hide them instead of relying on the backdrop.
+      labels.hide();
     }
     requestAnimationFrame(loop);
   };
