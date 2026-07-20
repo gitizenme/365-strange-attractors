@@ -14,6 +14,8 @@ export class Labels {
     }
   }
 
+  hide(): void { this.els.forEach(e => (e.style.display = 'none')); }
+
   update(camera: THREE.PerspectiveCamera, canvas: HTMLCanvasElement,
          positionOf: (i: number) => { x: number; y: number }, zThreshold = 40): void {
     if (camera.position.z >= zThreshold) { this.els.forEach(e => (e.style.display = 'none')); return; }
