@@ -327,6 +327,7 @@ export class PieceView {
   private orbit: OrbitState | null = null;
   private orbitDragging = false;
   private orbitLast = { x: 0, y: 0 };
+  private orbitMoved = 0;
   private disturbHeld = false;
   private disturbAmount = 0;
 
@@ -375,13 +376,19 @@ export class PieceView {
       if ((e.target as HTMLElement).closest('button')) return;
       this.orbitDragging = true;
       this.orbitLast = { x: e.clientX, y: e.clientY };
-      // The disturb-hold gesture (Task 8) shares this same pointerdown: a press-and-hold that
-      // later moves should keep orbiting AND keep disturbing at once, so both flags are set from
-      // the same event rather than wiring a separate listener. Note this listener lives on the
-      // canvas, not the piece root: while a live attractor is showing, the root's CSS switches to
-      // pointer-events:none (see the `.piece.live-active` rule in style.css) specifically so
-      // drag/press input passes through to this canvas — a listener on the root itself would only
-      // ever see clicks on the nav/close buttons, never a press in the middle of the cloud.
+      this.orbitMoved = 0;
+      // The disturb-hold gesture (Task 8) starts tentatively on this same pointerdown, since a
+      // press that stays put is disturb intent from the first frame — but the pointermove handler
+      // below cuts `disturbHeld` back off once cumulative movement crosses a 5px threshold, so a
+      // real drag (orbit intent) doesn't also ramp the perturbation. This mirrors controls.ts's
+      // Controls class, which uses the same 5px cumulative-movement threshold to tell a tap from a
+      // drag (see its `moved` field) — applied continuously here rather than judged once at
+      // pointerup, since disturb needs to stop ramping the moment the threshold is crossed, not
+      // retroactively at release. Note this listener lives on the canvas, not the piece root: while
+      // a live attractor is showing, the root's CSS switches to pointer-events:none (see the
+      // `.piece.live-active` rule in style.css) specifically so drag/press input passes through to
+      // this canvas — a listener on the root itself would only ever see clicks on the nav/close
+      // buttons, never a press in the middle of the cloud.
       this.disturbHeld = true;
     });
     addEventListener('pointermove', e => {
@@ -390,6 +397,8 @@ export class PieceView {
       const dy = e.clientY - this.orbitLast.y;
       this.orbit = applyOrbitDrag(this.orbit, dx, dy);
       this.orbitLast = { x: e.clientX, y: e.clientY };
+      this.orbitMoved += Math.hypot(dx, dy);
+      if (this.orbitMoved > 5) this.disturbHeld = false;
     });
     addEventListener('pointerup', () => { this.orbitDragging = false; this.disturbHeld = false; });
     canvas.addEventListener('wheel', e => {
