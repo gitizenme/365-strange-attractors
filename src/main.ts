@@ -8,9 +8,11 @@ import { Router } from './router';
 import { PieceView } from './piece';
 import { IndexView } from './indexview';
 import { Minimap } from './minimap';
+import { MusicView } from './musicview';
+import { loadMusicData } from './musicdata';
 
 async function boot() {
-  const [{ artworks, atlas }, attractors] = await Promise.all([loadData(), loadAttractors()]);
+  const [{ artworks, atlas }, attractors, musicData] = await Promise.all([loadData(), loadAttractors(), loadMusicData()]);
   const canvas = document.getElementById('gl') as HTMLCanvasElement;
   let con: Constellation;
   try {
@@ -112,7 +114,17 @@ async function boot() {
     if (e.key === 'Escape' && index.isOpen()) router.go({ kind: 'home' });
   });
 
+  const music = new MusicView(overlay, musicData, () => router.go({ kind: 'home' }));
+  const musicBtn = document.createElement('button');
+  musicBtn.id = 'music-toggle';
+  musicBtn.textContent = 'Music';
+  musicBtn.title = 'Chaos of Zen discography';
+  overlay.appendChild(musicBtn);
+  musicBtn.addEventListener('click', () => router.go({ kind: 'music' }));
+
   const router = new Router(async r => {
+    if (r.kind === 'music') { piece.close(); index.close(); music.open(); return; }
+    music.close();
     if (r.kind === 'index') { piece.close(); index.open(); return; }
     index.close();
     if (r.kind === 'day' && bySlug.has(r.slug)) {
