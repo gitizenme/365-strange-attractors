@@ -12,7 +12,14 @@ import { MusicView } from './musicview';
 import { loadMusicData } from './musicdata';
 
 async function boot() {
-  const [{ artworks, atlas }, attractors, musicData] = await Promise.all([loadData(), loadAttractors(), loadMusicData()]);
+  // music.json is a supplementary, link-out showcase, unlike artworks/atlas/attractors (which the
+  // rest of boot() can't function without at all) -- so its failure must not reject this Promise.all
+  // and take the whole site down with it. Per spec §6, MusicView should "show nothing rather than
+  // crashing the rest of the app" if its data fails to load/parse; catching here and falling back to
+  // null (handled below, where MusicView/musicBtn are only constructed when musicData is non-null)
+  // is what actually delivers that guarantee -- everything after this line runs regardless of
+  // whether /data/music.json 404s, fails to parse, or the network hiccups.
+  const [{ artworks, atlas }, attractors, musicData] = await Promise.all([loadData(), loadAttractors(), loadMusicData().catch(() => null)]);
   const canvas = document.getElementById('gl') as HTMLCanvasElement;
   let con: Constellation;
   try {
@@ -114,17 +121,25 @@ async function boot() {
     if (e.key === 'Escape' && index.isOpen()) router.go({ kind: 'home' });
   });
 
-  const music = new MusicView(overlay, musicData, () => router.go({ kind: 'home' }));
-  const musicBtn = document.createElement('button');
-  musicBtn.id = 'music-toggle';
-  musicBtn.textContent = 'Music';
-  musicBtn.title = 'Chaos of Zen discography';
-  overlay.appendChild(musicBtn);
-  musicBtn.addEventListener('click', () => router.go({ kind: 'music' }));
+  // null when /data/music.json failed to load/parse (see the Promise.all above) -- in that case,
+  // skip building MusicView and its nav button entirely rather than showing a button that opens
+  // nothing, matching spec §6's "shows nothing rather than crashing the rest of the app".
+  let music: MusicView | null = null;
+  if (musicData) {
+    music = new MusicView(overlay, musicData, () => router.go({ kind: 'home' }));
+    const musicBtn = document.createElement('button');
+    musicBtn.id = 'music-toggle';
+    musicBtn.textContent = 'Music';
+    musicBtn.title = 'Chaos of Zen discography';
+    overlay.appendChild(musicBtn);
+    musicBtn.addEventListener('click', () => router.go({ kind: 'music' }));
+  }
 
   const router = new Router(async r => {
-    if (r.kind === 'music') { piece.close(); index.close(); music.open(); return; }
-    music.close();
+    // music?. -- music is null when musicData failed to load (see above); a deep link to /music/
+    // in that case should also just show nothing rather than throw.
+    if (r.kind === 'music') { piece.close(); index.close(); music?.open(); return; }
+    music?.close();
     if (r.kind === 'index') { piece.close(); index.open(); return; }
     index.close();
     if (r.kind === 'day' && bySlug.has(r.slug)) {
