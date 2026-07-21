@@ -124,15 +124,29 @@ async function boot() {
   // null when /data/music.json failed to load/parse (see the Promise.all above) -- in that case,
   // skip building MusicView and its nav button entirely rather than showing a button that opens
   // nothing, matching spec §6's "shows nothing rather than crashing the rest of the app".
+  //
+  // The load succeeding (musicData truthy) doesn't guarantee its SHAPE is right, though -- e.g. a
+  // music.json missing `artist` would let MusicView's constructor run and throw synchronously the
+  // first time it dereferences a missing field. That throw would happen before `const router = new
+  // Router(...)` and `requestAnimationFrame(loop)` below, aborting the rest of boot(): no router, no
+  // click handling, no animation loop, the whole page frozen non-interactive -- the same failure
+  // class as the load-failure case above (MusicView's data problem taking down the entire site), just
+  // a different trigger. Wrap construction in try/catch, mirroring the `new Constellation(...)`
+  // try/catch a few lines up, so any throw here also just disables the Music section.
   let music: MusicView | null = null;
   if (musicData) {
-    music = new MusicView(overlay, musicData, () => router.go({ kind: 'home' }));
-    const musicBtn = document.createElement('button');
-    musicBtn.id = 'music-toggle';
-    musicBtn.textContent = 'Music';
-    musicBtn.title = 'Chaos of Zen discography';
-    overlay.appendChild(musicBtn);
-    musicBtn.addEventListener('click', () => router.go({ kind: 'music' }));
+    try {
+      music = new MusicView(overlay, musicData, () => router.go({ kind: 'home' }));
+      const musicBtn = document.createElement('button');
+      musicBtn.id = 'music-toggle';
+      musicBtn.textContent = 'Music';
+      musicBtn.title = 'Chaos of Zen discography';
+      overlay.appendChild(musicBtn);
+      musicBtn.addEventListener('click', () => router.go({ kind: 'music' }));
+    } catch (err) {
+      console.error('MusicView failed to construct, disabling Music section', err);
+      music = null;
+    }
   }
 
   const router = new Router(async r => {
