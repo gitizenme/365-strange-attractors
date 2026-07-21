@@ -1,6 +1,6 @@
 export type Route =
   | { kind: 'home' } | { kind: 'day'; slug: string }
-  | { kind: 'index' } | { kind: 'about' };
+  | { kind: 'index' } | { kind: 'about' } | { kind: 'music' };
 
 export function parseRoute(pathname: string): Route {
   const p = pathname.replace(/\/+$/, '');
@@ -8,6 +8,7 @@ export function parseRoute(pathname: string): Route {
   if (day) return { kind: 'day', slug: day[1] };
   if (p === '/index') return { kind: 'index' };
   if (p === '/about') return { kind: 'about' };
+  if (p === '/music') return { kind: 'music' };
   return { kind: 'home' };
 }
 
@@ -17,6 +18,7 @@ export function routePath(r: Route): string {
     case 'day': return `/day/${r.slug}/`;
     case 'index': return '/index/';
     case 'about': return '/about/';
+    case 'music': return '/music/';
   }
 }
 
