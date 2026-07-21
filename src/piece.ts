@@ -93,11 +93,11 @@ function sampleSettledTrajectory(
   state: { x: number; y: number; z: number },
   settleSteps: number,
   sampleSteps: number,
-): { scale: number; centerZ: number; seed: SeedSpec } {
+): { scale: number; centerX: number; centerY: number; centerZ: number; seed: SeedSpec } {
   for (let i = 0; i < settleSteps; i++) step();
-  let maxAbs = 0;
-  let minZ = Infinity;
-  let maxZ = -Infinity;
+  let minX = Infinity, maxX = -Infinity;
+  let minY = Infinity, maxY = -Infinity;
+  let minZ = Infinity, maxZ = -Infinity;
   // Cap how many of the sampled points we actually keep: ~1M GPU texels only need a diverse pool
   // to draw from, not one entry per texel (they're picked randomly with replacement — see
   // gpgpu.ts's fillSeedTexture) — a few thousand distinct points is already plenty of diversity
@@ -108,19 +108,36 @@ function sampleSettledTrajectory(
   for (let i = 0; i < sampleSteps; i++) {
     step();
     if (!isFinite(state.x) || !isFinite(state.y) || !isFinite(state.z)) break;
-    maxAbs = Math.max(maxAbs, Math.abs(state.x), Math.abs(state.y), Math.abs(state.z));
-    minZ = Math.min(minZ, state.z);
-    maxZ = Math.max(maxZ, state.z);
+    minX = Math.min(minX, state.x); maxX = Math.max(maxX, state.x);
+    minY = Math.min(minY, state.y); maxY = Math.max(maxY, state.y);
+    minZ = Math.min(minZ, state.z); maxZ = Math.max(maxZ, state.z);
     if (i % stride === 0) seedPoints.push(state.x, state.y, state.z);
   }
   const TARGET_HALF_EXTENT = 4; // fits comfortably inside the orbit camera's default frustum (radius 10, 50deg fov => visible half-height ~4.66)
-  const scale = maxAbs > 0.001 ? TARGET_HALF_EXTENT / maxAbs : 1;
+  // Half-extent from each axis's own SPAN (max-min), not from maxAbs (distance from the origin).
+  // Those agree only when the shape happens to be centered near the origin -- true for most
+  // families here, but day 012-green-leafs (polynomial_func, sin variant) settles onto a small
+  // ~0.5-unit blob sitting far off-origin (center ~(-4.4, -1.4, 1.25)): maxAbs was dominated by
+  // that offset (~4.76) rather than the blob's actual size, so the old formula scaled the cloud
+  // down to fit its DISTANCE from the origin instead of its own extent, and only centerZ (not
+  // centerX/centerY) recentered it -- producing a tiny, off-center cloud. Span-based half-extent
+  // plus recentering all three axes fixes both problems and is a no-op for shapes already
+  // centered near the origin (span/2 == maxAbs there).
+  const halfExtent = Math.max(
+    isFinite(maxX) && isFinite(minX) ? (maxX - minX) / 2 : 0,
+    isFinite(maxY) && isFinite(minY) ? (maxY - minY) / 2 : 0,
+    isFinite(maxZ) && isFinite(minZ) ? (maxZ - minZ) / 2 : 0,
+  );
+  const scale = halfExtent > 0.001 ? TARGET_HALF_EXTENT / halfExtent : 1;
+  const centerX = isFinite(minX) && isFinite(maxX) ? (minX + maxX) / 2 : 0;
+  const centerY = isFinite(minY) && isFinite(maxY) ? (minY + maxY) / 2 : 0;
   const centerZ = isFinite(minZ) && isFinite(maxZ) ? (minZ + maxZ) / 2 : 0;
-  // Jitter scales with the attractor's own extent (1% of maxAbs) rather than a flat constant: a
-  // fixed jitter that looks right for a ~1-unit-extent day would barely register on a ~40-unit
-  // day, and vice versa (this dataset's chaotic_flow days span roughly that range).
-  const jitter = maxAbs > 0.001 ? maxAbs * 0.01 : 0.05;
-  return { scale, centerZ, seed: { points: Float32Array.from(seedPoints), jitter } };
+  // Jitter scales with the attractor's own extent (1% of its largest axis span) rather than a
+  // flat constant or (as before) maxAbs -- same off-origin reasoning as halfExtent above applies
+  // here too, otherwise an off-origin day's jitter would be sized to its distance from the origin
+  // rather than its own footprint.
+  const jitter = halfExtent > 0.001 ? halfExtent * 2 * 0.01 : 0.05;
+  return { scale, centerX, centerY, centerZ, seed: { points: Float32Array.from(seedPoints), jitter } };
 }
 
 // Lorenz-84's natural coordinate range varies a lot from day to day (empirically, half-extents
@@ -143,7 +160,7 @@ function sampleSettledTrajectory(
 // the returned value is still populated — same shared helper — but piece.ts's open() does not
 // currently pass it to LiveAttractor for this family, since there's no measured benefit and doing
 // so would be an untested code path for an already-working family.)
-export function estimateLorenz84Display(params: number[]): { scale: number; centerZ: number; seed: SeedSpec } {
+export function estimateLorenz84Display(params: number[]): { scale: number; centerX: number; centerY: number; centerZ: number; seed: SeedSpec } {
   const [a, b, F, G, dt] = params;
   const state = { x: 0.1, y: 0.1, z: 0.1 };
   const step = () => {
@@ -171,7 +188,7 @@ export function estimateLorenz84Display(params: number[]): { scale: number; cent
 // under the old random-near-origin seeding) — and the extra sample steps cost well under a
 // millisecond of CPU time (measured), nowhere near the multi-second freeze a naive "just run more
 // GPU settling steps" fix would have caused.
-export function estimateChaoticFlowDisplay(params: number[]): { scale: number; centerZ: number; seed: SeedSpec } {
+export function estimateChaoticFlowDisplay(params: number[]): { scale: number; centerX: number; centerY: number; centerZ: number; seed: SeedSpec } {
   const c = params;
   const dT = c[21];
   const opVar = (idx: number, x: number, y: number, z: number) => {
@@ -198,7 +215,7 @@ export function estimateChaoticFlowDisplay(params: number[]): { scale: number; c
 // days still have a ~2.5x different natural scale (half-extents ~1.4 vs ~2.6-3.4 units), so a
 // single flat constant (like Lorenz's/Pickover's) would leave one day's cloud visibly
 // under/over-sized relative to the other. Mirrors polynomialC.ts's glslStep exactly.
-export function estimatePolynomialCDisplay(params: number[]): { scale: number; centerZ: number; seed: SeedSpec } {
+export function estimatePolynomialCDisplay(params: number[]): { scale: number; centerX: number; centerY: number; centerZ: number; seed: SeedSpec } {
   const c = params;
   const state = { x: 0.1, y: 0.1, z: 0.1 };
   const step = () => {
@@ -236,7 +253,7 @@ export function estimatePolynomialCDisplay(params: number[]): { scale: number; c
 // sidesteps that one unlucky point without changing anything about how the real day behaves.
 // polynomial_b's day 041 has no such issue -- (0.1, 0.1, 0.1) converges fine -- but the origin is
 // used for it too, for consistency between the two files.
-export function estimatePolynomialADisplay(params: number[]): { scale: number; centerZ: number; seed: SeedSpec } {
+export function estimatePolynomialADisplay(params: number[]): { scale: number; centerX: number; centerY: number; centerZ: number; seed: SeedSpec } {
   const [P0, P1, P2] = params;
   const state = { x: 0, y: 0, z: 0 };
   const step = () => {
@@ -249,7 +266,7 @@ export function estimatePolynomialADisplay(params: number[]): { scale: number; c
   return sampleSettledTrajectory(step, state, 3000, 3000);
 }
 
-export function estimatePolynomialBDisplay(params: number[]): { scale: number; centerZ: number; seed: SeedSpec } {
+export function estimatePolynomialBDisplay(params: number[]): { scale: number; centerX: number; centerY: number; centerZ: number; seed: SeedSpec } {
   const [P0, P1, P2, P3, P4, P5] = params;
   const state = { x: 0, y: 0, z: 0 };
   const step = () => {
@@ -276,7 +293,7 @@ export function estimatePolynomialBDisplay(params: number[]): { scale: number; c
 // pre-sampled trajectory (this function's `seed` output) sidesteps that the same way it did for
 // chaotic_flow. Mirrors polynomialFunc.ts's glslStep exactly (operating on already-normalized
 // 40-slot params -- see normalizeFuncParams).
-export function estimatePolynomialFuncDisplay(rawParams: number[]): { scale: number; centerZ: number; seed: SeedSpec } {
+export function estimatePolynomialFuncDisplay(rawParams: number[]): { scale: number; centerX: number; centerY: number; centerZ: number; seed: SeedSpec } {
   const c = normalizeFuncParams(rawParams);
   const variant = c[39];
   const state = { x: 0.1, y: 0.1, z: 0.1 };
@@ -309,7 +326,7 @@ export function estimatePolynomialFuncDisplay(rawParams: number[]): { scale: num
 // The individual estimate*Display functions above stay as their own exported, independently
 // tested units (see tests/piece-display.test.ts) — this only consolidates how open() dispatches
 // to them.
-interface DisplayResult { scale: number; centerZ: number; seed?: SeedSpec }
+interface DisplayResult { scale: number; centerX: number; centerY: number; centerZ: number; seed?: SeedSpec }
 
 // Lorenz's two chaotic lobes straddle fixed points at local z ≈ rho - 1 (not local z ≈ 0), and its
 // natural coordinate scale (fixed points ~8.5 units apart, full chaotic spread tens of units) is
@@ -324,8 +341,8 @@ const PICKOVER_DISPLAY_SCALE = 3.2;
 const DISPLAY_ESTIMATORS: Record<string, (params: number[]) => DisplayResult> = {
   // Closed-form scale/centerZ (see the constants' comments above) — no CPU pre-simulation needed,
   // unlike every other family below.
-  lorenz: params => ({ scale: LORENZ_DISPLAY_SCALE, centerZ: params.length >= 2 ? params[1] - 1 : 0 }),
-  pickover: () => ({ scale: PICKOVER_DISPLAY_SCALE, centerZ: 0 }),
+  lorenz: params => ({ scale: LORENZ_DISPLAY_SCALE, centerX: 0, centerY: 0, centerZ: params.length >= 2 ? params[1] - 1 : 0 }),
+  pickover: () => ({ scale: PICKOVER_DISPLAY_SCALE, centerX: 0, centerY: 0, centerZ: 0 }),
   // lorenz_84 deliberately drops its own computed `seed`: checked empirically against this
   // dataset's smallest-dt days and found NOT to show the slow-mixing bug chaotic_flow has (see
   // estimateLorenz84Display's header comment), so passing it would be an untested code path for an
@@ -539,7 +556,7 @@ export class PieceView {
         // See DISPLAY_ESTIMATORS above (and each estimate*Display function it wraps) for why each
         // family's scale/centerZ/seed is what it is. Families with no entry (currently none — all
         // 7 live families here have one) fall back to an unscaled, uncentered, unseeded default.
-        const display = DISPLAY_ESTIMATORS[attractor.system]?.(attractor.params) ?? { scale: 1, centerZ: 0 };
+        const display = DISPLAY_ESTIMATORS[attractor.system]?.(attractor.params) ?? { scale: 1, centerX: 0, centerY: 0, centerZ: 0 };
         const liveSeed = display.seed && display.seed.points.length >= 3 ? display.seed : undefined;
         // polynomial_func's real archive days have 3 genuinely different underlying parameter-
         // list lengths (21/24/39 — see polynomialFunc.ts's header comment for why), but
@@ -565,11 +582,15 @@ export class PieceView {
         }
         // The raw point cloud is generated in its own local attractor-space coordinates and needs
         // translating into this artwork's constellation position so it lines up with where the
-        // camera flew to/orbits (x, y) and, per-family, in z too (recentering some families' off-
-        // origin natural cluster onto the orbit target — see DISPLAY_ESTIMATORS above and each
-        // estimate*Display function for why each family's scale/centerZ is what it is).
+        // camera flew to/orbits — recentering all three axes onto that target, since a family's
+        // natural cluster isn't always near its own local origin (see DISPLAY_ESTIMATORS above and
+        // each estimate*Display function for why each family's scale/center is what it is).
         this.liveAttractor.points.scale.setScalar(display.scale);
-        this.liveAttractor.points.position.set(a.x, a.y, 8 - display.scale * display.centerZ);
+        this.liveAttractor.points.position.set(
+          a.x - display.scale * display.centerX,
+          a.y - display.scale * display.centerY,
+          8 - display.scale * display.centerZ,
+        );
         this.orbit = initialOrbitState({ x: a.x, y: a.y, z: 8 }); // a.x/a.y = this piece's constellation position; z matches Phase 1's flyTo z target
         // Calibrate against the real opening camera position/framing before the first visible
         // frame — position the shared camera here first (render() below repositions it from
