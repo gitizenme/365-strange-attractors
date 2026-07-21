@@ -487,6 +487,20 @@
       "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/bc/b0/f1/bcb0f181-531b-24f4-734a-81efcf779931/artwork.jpg/1200x1200bb.jpg",
       "appleMusicUrl": "https://music.apple.com/us/album/52-52-single/1895777582",
       "youtubeUrl": "https://youtube.com/watch?v=uqDHcKHPzsw"
+    },
+    {
+      "title": "_Underscore_",
+      "type": "ep",
+      "year": 2020,
+      "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music114/v4/26/7b/27/267b2725-0b2b-4d3a-a256-a6d83e70ba0f/artwork.jpg/1200x1200bb.jpg",
+      "appleMusicUrl": "https://music.apple.com/us/album/underscore-ep/1532658129"
+    },
+    {
+      "title": "Eight-02.26",
+      "type": "single",
+      "year": 2023,
+      "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music116/v4/e2/f1/6a/e2f16a7a-0a89-199a-797a-9ae2fb70cfd8/artwork.jpg/1200x1200bb.jpg",
+      "appleMusicUrl": "https://music.apple.com/us/album/eight-02-26-single/1675173377"
     }
   ]
 }
