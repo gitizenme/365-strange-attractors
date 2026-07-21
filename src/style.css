@@ -36,7 +36,10 @@ html, body { height: 100%; background: #06070a; color: #cfd3dc; font-family: Geo
   background: none; border: none; color: #9aa1b0; font-size: 40px; cursor: pointer; padding: 12px;
 }
 .piece-nav:hover, .piece-close:hover { color: #fff; }
-.piece-close { position: absolute; top: 8px; right: 14px; font-size: 30px; }
+/* z-index:2 -- must beat #time-toggle's z-index:1 (see below), since .piece-close sits at nearly
+   the same top-right corner as #time-toggle and, being a same-level positioned sibling with a lower
+   z-index, would otherwise lose the overlap and become unclickable/invisible while a piece is open. */
+.piece-close { position: absolute; top: 8px; right: 14px; font-size: 30px; z-index: 2; }
 @media (max-width: 700px) { .piece-nav { position: absolute; bottom: 8px; } .piece-nav.prev { left: 20vw; } .piece-nav.next { right: 20vw; } }
 
 #index-toggle { position: absolute; top: 16px; right: 96px; background: rgba(20,24,32,0.7);
@@ -53,13 +56,17 @@ html, body { height: 100%; background: #06070a; color: #cfd3dc; font-family: Geo
   color: #cfd3dc; border: 1px solid #333a48; padding: 6px 14px; border-radius: 16px;
   font: inherit; font-size: 13px; cursor: pointer; }
 
-/* All three nav toggles must stay clickable no matter which full-screen view (.piece/.indexview/
-   .musicview, all position:absolute with z-index:auto) is currently open on top of them in DOM
-   order -- e.g. #index-toggle is appended before .musicview/#music-toggle, so without this it would
-   be painted (and hit-tested) underneath the music overlay whenever Music is open, making it
+/* All three nav toggles must stay clickable no matter which full-screen view backdrop (.piece/
+   .indexview/.musicview, all position:absolute with z-index:auto) is currently open on top of them
+   in DOM order -- e.g. #index-toggle is appended before .musicview/#music-toggle, so without this it
+   would be painted (and hit-tested) underneath the music overlay whenever Music is open, making it
    impossible to click "Index" to switch away from Music. A positive z-index lifts all three above
-   any z-index:auto overlay regardless of DOM order, matching the precedent set by .music-close's
-   z-index: 1. */
+   any z-index:auto backdrop regardless of DOM order.
+   This must stay LOWER than each view's own close control (.piece-close, .music-close: z-index 2)
+   -- .piece-close and .music-close each occupy nearly the same top-right corner as these toggles,
+   and whichever view is actually open needs its own × to win that overlap, not the always-visible
+   toggle row underneath it. IndexView has no dedicated close button (only Escape/route-away close
+   it), so there's no third collision to resolve there. */
 #time-toggle, #index-toggle, #music-toggle { z-index: 1; }
 
 #hide-image-toggle { position: absolute; bottom: 16px; right: 16px; background: rgba(20,24,32,0.7);
@@ -119,8 +126,12 @@ html, body { height: 100%; background: #06070a; color: #cfd3dc; font-family: Geo
   background: #12141a; color: #cfd3dc;
   padding: 48px 24px; box-sizing: border-box;
 }
+/* z-index:2 (bumped from Task 4's original z-index:1) -- must beat #time-toggle's z-index:1, since
+   .music-close sits at the exact same top-right corner (top:16px;right:16px) and, as a same-level
+   positioned sibling with a lower z-index, would otherwise lose that overlap to the always-visible
+   toggle row while Music is open. */
 .music-close {
-  position: fixed; top: 16px; right: 16px; z-index: 1;
+  position: fixed; top: 16px; right: 16px; z-index: 2;
   font-size: 28px; line-height: 1; background: none; border: none; color: #cfd3dc; cursor: pointer;
 }
 .music-header { max-width: 640px; margin: 0 auto 40px; text-align: center; }
