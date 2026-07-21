@@ -46,6 +46,9 @@ html, body { height: 100%; background: #06070a; color: #cfd3dc; font-family: Geo
 #hide-image-toggle { position: absolute; bottom: 16px; right: 16px; background: rgba(20,24,32,0.7);
   color: #cfd3dc; border: 1px solid #333a48; padding: 6px 14px; border-radius: 16px;
   font: inherit; font-size: 13px; cursor: pointer; display: none; }
+/* Matches #time-toggle's pressed treatment -- a visual cue for the button's own state, on top of
+   its label text switching between "Hide Image"/"Show Image" (see main.ts's syncHideImageLabel). */
+#hide-image-toggle[aria-pressed="true"] { background: #cfd3dc; color: #10131a; }
 .piece.hide-static picture { opacity: 0; }
 /* The backdrop's default rgba(...,0.82) sits above the canvas and dims whatever's drawn there by
    ~18%, which is fine while the static image is showing (it draws the eye anyway) but needlessly
