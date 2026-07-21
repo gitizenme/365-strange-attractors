@@ -402,7 +402,7 @@ export class PieceView {
     this.root = document.createElement('div');
     this.root.className = 'piece hidden';
     this.root.innerHTML = `
-      <button class="piece-nav prev" aria-label="Previous day">‹</button>
+      <button class="piece-nav prev" aria-label="Previous day" title="Previous day">‹</button>
       <figure>
         <picture>
           <source type="image/avif" /><source type="image/webp" />
@@ -410,8 +410,8 @@ export class PieceView {
         </picture>
         <figcaption></figcaption>
       </figure>
-      <button class="piece-nav next" aria-label="Next day">›</button>
-      <button class="piece-close" aria-label="Close">×</button>`;
+      <button class="piece-nav next" aria-label="Next day" title="Next day">›</button>
+      <button class="piece-close" aria-label="Close" title="Close">×</button>`;
     overlay.appendChild(this.root);
     const [avif, webp] = this.root.querySelectorAll('source');
     this.sources = { avif, webp };
@@ -654,7 +654,14 @@ export class PieceView {
   // hide-image button's visibility below), not this accessor.
   hasLiveSupport(): boolean { return this.tier !== null; }
 
-  toggleHideStatic(): void { this.root.classList.toggle('hide-static'); }
+  // Returns the new state so callers (main.ts's hide-image button) can update their own label to
+  // reflect it rather than showing the same text regardless of which action clicking will perform.
+  toggleHideStatic(): boolean { return this.root.classList.toggle('hide-static'); }
+
+  // Hide-static persists across day navigation and close/reopen (neither open() nor close() resets
+  // it), so main.ts needs to re-sync the button's label after those transitions too, not just right
+  // after a click.
+  isHidingStatic(): boolean { return this.root.classList.contains('hide-static'); }
 
   // True when the static image is hidden and a live cloud is actively showing full-brightness —
   // main.ts's render loop uses this to skip drawing the constellation behind the cloud that frame.

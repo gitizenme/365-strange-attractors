@@ -30,6 +30,7 @@ async function boot() {
   const timeBtn = document.createElement('button');
   timeBtn.id = 'time-toggle';
   timeBtn.textContent = 'Time';
+  timeBtn.title = 'Arrange by date instead of visual similarity';
   timeBtn.setAttribute('aria-pressed', 'false');
   overlay.appendChild(timeBtn);
   let timeMode = false;
@@ -63,6 +64,7 @@ async function boot() {
   const hideImageBtn = document.createElement('button');
   hideImageBtn.id = 'hide-image-toggle';
   hideImageBtn.textContent = 'Hide Image';
+  hideImageBtn.title = 'Hide the static image and show only the live attractor';
 
   const brightnessSlider = document.createElement('input');
   brightnessSlider.id = 'brightness-slider';
@@ -83,7 +85,17 @@ async function boot() {
   // appended after piece.root so it paints on top of the piece backdrop while open (same pattern as indexBtn)
   overlay.appendChild(hideImageBtn);
   overlay.appendChild(brightnessSlider);
-  hideImageBtn.addEventListener('click', () => piece.toggleHideStatic());
+  // Reflects which action clicking will perform next, not just the button's own name -- otherwise
+  // the label reads "Hide Image" even after the image is already hidden, with nothing on screen
+  // indicating that clicking again would bring it back.
+  const syncHideImageLabel = () => {
+    const hiding = piece.isHidingStatic();
+    hideImageBtn.textContent = hiding ? 'Show Image' : 'Hide Image';
+    hideImageBtn.title = hiding ? 'Show the static image again' : 'Hide the static image and show only the live attractor';
+    hideImageBtn.setAttribute('aria-pressed', String(hiding));
+  };
+  syncHideImageLabel();
+  hideImageBtn.addEventListener('click', () => { piece.toggleHideStatic(); syncHideImageLabel(); });
 
   const index = new IndexView(overlay, artworks, slug => {
     index.close();
@@ -92,6 +104,7 @@ async function boot() {
   const indexBtn = document.createElement('button');
   indexBtn.id = 'index-toggle';
   indexBtn.textContent = 'Index';
+  indexBtn.title = 'Browse all 365 days (or press /)';
   overlay.appendChild(indexBtn);
   indexBtn.addEventListener('click', () => router.go({ kind: 'index' }));
   addEventListener('keydown', e => {
@@ -107,6 +120,7 @@ async function boot() {
       const p = con.positionOf(i);
       await controls.flyTo(p.x, p.y, 8, 0.9);
       piece.open(r.slug);
+      syncHideImageLabel();
     } else {
       piece.close();
     }
