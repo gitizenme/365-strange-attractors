@@ -1,0 +1,506 @@
+{
+  "artist": {
+    "name": "Chaos of Zen",
+    "bio": "Chaos of Zen is the recording name of Joe Chavez, a Reno, Nevada-based artist working in generative, ambient, and improvised electronic music. His earliest musical memory traces back to a record player his parents gave him one Christmas, which sent him traveling through decades of music — early rock and roll, the 60s, 70s, and 80s — and on to a lifelong pull toward live shows.\n\nHis touchstones as a listener are Radiohead's OK Computer, Rage Against the Machine's self-titled debut, and U2's No Line on the Horizon (Bonus Track Version) — three records he returns to for the way they hold up in live performance: OK Computer for its sophistication, Rage Against the Machine for its unbridled passion, and No Line on the Horizon as the culmination of U2's decades-long evolution.\n\nAmong his own recordings, he singles out “Eight-02.26” — eight hands on four pianos, simple on the surface but built from decades of experimentation in ambient, generative, and improvised music. The recording captures a single point in time within an ever-evolving composition.",
+    "appleMusicUrl": "https://music.apple.com/us/artist/chaos-of-zen/424257434",
+    "youtubeUrl": "https://youtube.com/@chaosofzen",
+    "spotifyUrl": "https://open.spotify.com/artist/2kyJGKFwjut7J2itBQkwwa"
+  },
+  "albums": [
+    {
+      "title": "Random Acts of Ambients, Vol. 1.",
+      "year": 2011,
+      "trackCount": 14,
+      "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music4/v4/ec/cc/af/ecccafa1-23de-1a25-8c5d-714b8fffa443/859712993601_cover.tif/1200x1200bb.jpg",
+      "appleMusicUrl": "https://music.apple.com/us/album/random-acts-of-ambients-vol-1/921794668"
+    },
+    {
+      "title": "Random Acts of Ambients, Vol. 2",
+      "year": 2019,
+      "trackCount": 15,
+      "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music113/v4/ef/c5/c9/efc5c901-6012-5cf0-0949-6330265c4783/artwork.jpg/1200x1200bb.jpg",
+      "appleMusicUrl": "https://music.apple.com/us/album/random-acts-of-ambients-vol-2/1465798122"
+    }
+  ],
+  "musicVideos": [
+    {
+      "title": "52.32",
+      "type": "video",
+      "year": 2022,
+      "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Video112/v4/cc/72/ac/cc72ac6c-8efd-9766-7817-bc1a509c42e8/artwork.jpg/1200x1200bb.jpg",
+      "appleMusicUrl": "https://music.apple.com/us/music-video/52-32/1639821471",
+      "youtubeUrl": "https://youtube.com/watch?v=NFRPklV-9MA"
+    },
+    {
+      "title": "52.52",
+      "type": "video",
+      "year": 2022,
+      "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Video122/v4/e3/6c/b8/e36cb87d-a74c-2457-b4e6-5ee35f145cc2/artwork.jpg/1200x1200bb.jpg",
+      "appleMusicUrl": "https://music.apple.com/us/music-video/52-52/1639820973",
+      "youtubeUrl": "https://youtube.com/watch?v=uqDHcKHPzsw"
+    },
+    {
+      "title": "52.06",
+      "type": "video",
+      "year": 2022,
+      "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Video122/v4/fa/8b/66/fa8b66d9-9858-22a9-baf8-6f63366e0e4f/artwork.jpg/1200x1200bb.jpg",
+      "appleMusicUrl": "https://music.apple.com/us/music-video/52-06/1638556015",
+      "youtubeUrl": "https://youtube.com/watch?v=tTNuzYNzhAo"
+    },
+    {
+      "title": "52.07",
+      "type": "video",
+      "year": 2022,
+      "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Video112/v4/ef/65/87/ef658776-d024-a266-a9be-1ee1654bde93/artwork.jpg/1200x1200bb.jpg",
+      "appleMusicUrl": "https://music.apple.com/us/music-video/52-07/1638545757",
+      "youtubeUrl": "https://youtube.com/watch?v=1FaiixQ5oSw"
+    },
+    {
+      "title": "52.39",
+      "type": "video",
+      "year": 2022,
+      "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Video122/v4/82/05/9a/82059abd-1ada-01b6-7445-12618c44993c/artwork.jpg/1200x1200bb.jpg",
+      "appleMusicUrl": "https://music.apple.com/us/music-video/52-39/1638547930",
+      "youtubeUrl": "https://youtube.com/watch?v=7KRX6KqLMYo"
+    },
+    {
+      "title": "52.46",
+      "type": "video",
+      "year": 2022,
+      "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Video122/v4/99/52/d9/9952d99c-f69d-6db9-c55a-7c56d99b088b/artwork.jpg/1200x1200bb.jpg",
+      "appleMusicUrl": "https://music.apple.com/us/music-video/52-46/1643051300",
+      "youtubeUrl": "https://youtube.com/watch?v=wRzY5jH-yKQ"
+    }
+  ],
+  "singles": [
+    {
+      "title": "52.01",
+      "type": "single",
+      "year": 2021,
+      "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music115/v4/45/4d/f4/454df4c2-ee7b-d4b0-5bc5-fe4cf792b82d/artwork.jpg/1200x1200bb.jpg",
+      "appleMusicUrl": "https://music.apple.com/us/album/52-01-single/1590439004",
+      "youtubeUrl": "https://youtube.com/watch?v=Fzn9WDSZy4c"
+    },
+    {
+      "title": "52.02",
+      "type": "single",
+      "year": 2021,
+      "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music125/v4/a9/b5/5a/a9b55a4e-7377-8e8e-d775-c2bc1eae9304/artwork.jpg/1200x1200bb.jpg",
+      "appleMusicUrl": "https://music.apple.com/us/album/52-02-single/1590613365",
+      "youtubeUrl": "https://youtube.com/watch?v=NiG_Li6G1yY"
+    },
+    {
+      "title": "52.03",
+      "type": "single",
+      "year": 2021,
+      "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music116/v4/99/4f/04/994f040d-1a93-0371-4e4c-df200d3a3173/artwork.jpg/1200x1200bb.jpg",
+      "appleMusicUrl": "https://music.apple.com/us/album/52-03-single/1601263703",
+      "youtubeUrl": "https://youtube.com/watch?v=ZX64xRXFrTE"
+    },
+    {
+      "title": "52.04",
+      "type": "single",
+      "year": 2021,
+      "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music116/v4/b9/81/81/b98181f5-60ce-598f-2017-b486fe535a0d/artwork.jpg/1200x1200bb.jpg",
+      "appleMusicUrl": "https://music.apple.com/us/album/52-04-single/1601263957",
+      "youtubeUrl": "https://youtube.com/watch?v=cUqbfjMKeDw"
+    },
+    {
+      "title": "52.05",
+      "type": "single",
+      "year": 2021,
+      "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music116/v4/51/fe/78/51fe78c8-b127-0199-1840-4531f0c62029/artwork.jpg/1200x1200bb.jpg",
+      "appleMusicUrl": "https://music.apple.com/us/album/52-05-single/1602149191",
+      "youtubeUrl": "https://youtube.com/watch?v=O5IwcQUlfzs"
+    },
+    {
+      "title": "52.06",
+      "type": "ep",
+      "year": 2021,
+      "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music126/v4/f8/d6/ad/f8d6ade8-615f-839c-8423-1160bc13d326/artwork.jpg/1200x1200bb.jpg",
+      "appleMusicUrl": "https://music.apple.com/us/album/52-06-ep/1601479064",
+      "youtubeUrl": "https://youtube.com/watch?v=tTNuzYNzhAo"
+    },
+    {
+      "title": "52.07",
+      "type": "single",
+      "year": 2021,
+      "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music116/v4/45/9c/ea/459cea06-65b0-a7d7-1bea-6002ed77900c/artwork.jpg/1200x1200bb.jpg",
+      "appleMusicUrl": "https://music.apple.com/us/album/52-07-single/1602152046",
+      "youtubeUrl": "https://youtube.com/watch?v=1FaiixQ5oSw"
+    },
+    {
+      "title": "52.08",
+      "type": "single",
+      "year": 2021,
+      "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music116/v4/eb/8a/5f/eb8a5f3c-dc1f-4023-2f05-1febb0433b55/artwork.jpg/1200x1200bb.jpg",
+      "appleMusicUrl": "https://music.apple.com/us/album/52-08-single/1674363113",
+      "youtubeUrl": "https://youtube.com/watch?v=dZxR45KGtuk"
+    },
+    {
+      "title": "52.09",
+      "type": "single",
+      "year": 2021,
+      "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music126/v4/db/e1/0e/dbe10e84-37fd-5264-2407-65af2ab830e0/artwork.jpg/1200x1200bb.jpg",
+      "appleMusicUrl": "https://music.apple.com/us/album/52-09-single/1674419495",
+      "youtubeUrl": "https://youtube.com/watch?v=eyBPk39lGNw"
+    },
+    {
+      "title": "52.10",
+      "type": "single",
+      "year": 2021,
+      "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music116/v4/a2/aa/16/a2aa16cb-a2fa-886c-615e-90cc4b4efa56/artwork.jpg/1200x1200bb.jpg",
+      "appleMusicUrl": "https://music.apple.com/us/album/52-10-single/1674423391",
+      "youtubeUrl": "https://youtube.com/watch?v=3XnotLW4JFY"
+    },
+    {
+      "title": "52.11",
+      "type": "single",
+      "year": 2021,
+      "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music116/v4/08/86/25/0886255e-873a-9ff4-e828-5798be9174d4/artwork.jpg/1200x1200bb.jpg",
+      "appleMusicUrl": "https://music.apple.com/us/album/52-11-single/1674428821",
+      "youtubeUrl": "https://youtube.com/watch?v=5LFJD569Bhc"
+    },
+    {
+      "title": "52.12",
+      "type": "single",
+      "year": 2023,
+      "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music116/v4/84/3c/35/843c3536-87bf-66b5-8059-9cb05e6d4e97/artwork.jpg/1200x1200bb.jpg",
+      "appleMusicUrl": "https://music.apple.com/us/album/52-12-single/1674433842",
+      "youtubeUrl": "https://youtube.com/watch?v=4mEc6klHtWs"
+    },
+    {
+      "title": "52.13",
+      "type": "single",
+      "year": 2026,
+      "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music211/v4/54/08/15/540815c9-31c6-d8c7-f816-71ed181cf0d8/artwork.jpg/1200x1200bb.jpg",
+      "appleMusicUrl": "https://music.apple.com/us/album/52-13-single/6766381361",
+      "youtubeUrl": "https://youtube.com/watch?v=sTGkKMdoU7w"
+    },
+    {
+      "title": "52.14",
+      "type": "single",
+      "year": 2026,
+      "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music211/v4/4d/b6/28/4db62840-ce03-080a-9d33-20806a0d93bd/artwork.jpg/1200x1200bb.jpg",
+      "appleMusicUrl": "https://music.apple.com/us/album/52-14-single/1895431367",
+      "youtubeUrl": "https://youtube.com/watch?v=xiWIDWfKM8w"
+    },
+    {
+      "title": "52.15",
+      "type": "single",
+      "year": 2026,
+      "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music211/v4/0b/19/8a/0b198ab5-c678-5868-55f6-85b3585bb56a/artwork.jpg/1200x1200bb.jpg",
+      "appleMusicUrl": "https://music.apple.com/us/album/52-15-single/1895439955",
+      "youtubeUrl": "https://youtube.com/watch?v=E47Huj_wyDM"
+    },
+    {
+      "title": "52.16",
+      "type": "single",
+      "year": 2026,
+      "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/f7/62/05/f7620523-45b7-0d27-f5b2-36c5d63833b5/artwork.jpg/1200x1200bb.jpg",
+      "appleMusicUrl": "https://music.apple.com/us/album/52-16-single/1895431635",
+      "youtubeUrl": "https://youtube.com/watch?v=nDMqWe_pjqs"
+    },
+    {
+      "title": "52.17",
+      "type": "single",
+      "year": 2026,
+      "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music211/v4/76/a6/bc/76a6bca7-ca48-68cd-b543-27b4b20a4c35/artwork.jpg/1200x1200bb.jpg",
+      "appleMusicUrl": "https://music.apple.com/us/album/52-17-single/1895437313",
+      "youtubeUrl": "https://youtube.com/watch?v=dMr-4wKl1BU"
+    },
+    {
+      "title": "52.18",
+      "type": "ep",
+      "year": 2026,
+      "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music211/v4/cd/d6/11/cdd6115b-5784-bba3-e38f-dcad3c982e54/artwork.jpg/1200x1200bb.jpg",
+      "appleMusicUrl": "https://music.apple.com/us/album/52-18-ep/1895446315",
+      "youtubeUrl": "https://youtube.com/watch?v=No47H45U66Q"
+    },
+    {
+      "title": "52.19",
+      "type": "single",
+      "year": 2026,
+      "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music211/v4/95/76/5f/95765f4f-b733-b37a-8f7a-2ced7c16648c/artwork.jpg/1200x1200bb.jpg",
+      "appleMusicUrl": "https://music.apple.com/us/album/52-19-single/1895437340",
+      "youtubeUrl": "https://youtube.com/watch?v=YPgKG882uvs"
+    },
+    {
+      "title": "52.20",
+      "type": "single",
+      "year": 2026,
+      "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/0a/62/5c/0a625cc9-6b15-72e3-ddd0-8c846bd6683a/artwork.jpg/1200x1200bb.jpg",
+      "appleMusicUrl": "https://music.apple.com/us/album/52-20-single/1895452566",
+      "youtubeUrl": "https://youtube.com/watch?v=FSMJ0VXq-bk"
+    },
+    {
+      "title": "52.21",
+      "type": "single",
+      "year": 2026,
+      "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/8f/79/95/8f79956a-ff39-8f3c-728e-55746972ef57/artwork.jpg/1200x1200bb.jpg",
+      "appleMusicUrl": "https://music.apple.com/us/album/52-21-single/1895463883",
+      "youtubeUrl": "https://youtube.com/watch?v=Cd6hoXe6hwU"
+    },
+    {
+      "title": "52.22",
+      "type": "single",
+      "year": 2026,
+      "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/46/a2/2a/46a22a2c-2dd8-4d48-d3a3-1f124f2d6e69/artwork.jpg/1200x1200bb.jpg",
+      "appleMusicUrl": "https://music.apple.com/us/album/52-22-single/1895452403",
+      "youtubeUrl": "https://youtube.com/watch?v=XSXpS1KqU1Y"
+    },
+    {
+      "title": "52.23",
+      "type": "single",
+      "year": 2026,
+      "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music211/v4/fa/6d/b1/fa6db12b-9d96-3c63-919a-75c23a5af7db/artwork.jpg/1200x1200bb.jpg",
+      "appleMusicUrl": "https://music.apple.com/us/album/52-23-single/1895602598",
+      "youtubeUrl": "https://youtube.com/watch?v=KteHJsvtLas"
+    },
+    {
+      "title": "52.24",
+      "type": "single",
+      "year": 2026,
+      "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music211/v4/97/2f/12/972f1238-7c55-17fa-78bc-bb20b8f9f6e8/artwork.jpg/1200x1200bb.jpg",
+      "appleMusicUrl": "https://music.apple.com/us/album/52-24-single/1895446713",
+      "youtubeUrl": "https://youtube.com/watch?v=JVGvbaybhI4"
+    },
+    {
+      "title": "52.25",
+      "type": "single",
+      "year": 2026,
+      "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/00/04/d4/0004d427-f767-0fc8-674b-bad58847bae3/artwork.jpg/1200x1200bb.jpg",
+      "appleMusicUrl": "https://music.apple.com/us/album/52-25-single/1895437685",
+      "youtubeUrl": "https://youtube.com/watch?v=LVY30HdeGCM"
+    },
+    {
+      "title": "52.26",
+      "type": "single",
+      "year": 2026,
+      "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music211/v4/2b/b7/1f/2bb71fec-fc62-63e0-93eb-1f798deda145/artwork.jpg/1200x1200bb.jpg",
+      "appleMusicUrl": "https://music.apple.com/us/album/52-26-single/1895455571",
+      "youtubeUrl": "https://youtube.com/watch?v=99ExxxSUhiI"
+    },
+    {
+      "title": "52.27",
+      "type": "single",
+      "year": 2026,
+      "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/1a/d8/c5/1ad8c538-dc61-feeb-c34d-72245d61517d/artwork.jpg/1200x1200bb.jpg",
+      "appleMusicUrl": "https://music.apple.com/us/album/52-27-single/1895602758",
+      "youtubeUrl": "https://youtube.com/watch?v=fbPGpK0lOnY"
+    },
+    {
+      "title": "52.28",
+      "type": "single",
+      "year": 2026,
+      "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/30/c5/37/30c5378e-46d6-a2a3-8135-a9c494216e27/artwork.jpg/1200x1200bb.jpg",
+      "appleMusicUrl": "https://music.apple.com/us/album/52-28-single/1895446611",
+      "youtubeUrl": "https://youtube.com/watch?v=tVgIL9cPKwg"
+    },
+    {
+      "title": "52.29",
+      "type": "single",
+      "year": 2026,
+      "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/5d/c8/2a/5dc82a7a-13ec-84f4-16d7-d1c4842ad4be/artwork.jpg/1200x1200bb.jpg",
+      "appleMusicUrl": "https://music.apple.com/us/album/52-29-single/1895635800"
+    },
+    {
+      "title": "52.30",
+      "type": "single",
+      "year": 2026,
+      "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/c8/e9/28/c8e92836-ccf6-68a3-a55d-982c524a0b85/artwork.jpg/1200x1200bb.jpg",
+      "appleMusicUrl": "https://music.apple.com/us/album/52-30-single/1895602866",
+      "youtubeUrl": "https://youtube.com/watch?v=aLOtWAo4er0"
+    },
+    {
+      "title": "52.31",
+      "type": "single",
+      "year": 2026,
+      "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/5e/8e/23/5e8e232c-b1bc-4f35-4251-48b06645ed43/artwork.jpg/1200x1200bb.jpg",
+      "appleMusicUrl": "https://music.apple.com/us/album/52-31-single/1895446733",
+      "youtubeUrl": "https://youtube.com/watch?v=zKC-fZENmTU"
+    },
+    {
+      "title": "52.32",
+      "type": "single",
+      "year": 2026,
+      "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music211/v4/23/a6/4c/23a64c04-7805-6b35-ef04-4f01c96befa7/artwork.jpg/1200x1200bb.jpg",
+      "appleMusicUrl": "https://music.apple.com/us/album/52-32-single/1895446863",
+      "youtubeUrl": "https://youtube.com/watch?v=NFRPklV-9MA"
+    },
+    {
+      "title": "52.33",
+      "type": "ep",
+      "year": 2026,
+      "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/b5/77/88/b577886a-ba0a-fc29-df65-afb7aa54446f/artwork.jpg/1200x1200bb.jpg",
+      "appleMusicUrl": "https://music.apple.com/us/album/52-33-ep/1895455288",
+      "youtubeUrl": "https://youtube.com/watch?v=ZTmhOCkWbqc"
+    },
+    {
+      "title": "52.34",
+      "type": "single",
+      "year": 2026,
+      "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/ff/6a/d3/ff6ad355-e86b-7d07-c4fb-9fdcb5f036a8/artwork.jpg/1200x1200bb.jpg",
+      "appleMusicUrl": "https://music.apple.com/us/album/52-34-single/1895602501",
+      "youtubeUrl": "https://youtube.com/watch?v=cwn2ZELXT_0"
+    },
+    {
+      "title": "52.35",
+      "type": "single",
+      "year": 2026,
+      "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music211/v4/66/50/08/66500860-a034-cc41-748a-ab4a83d0f0e8/artwork.jpg/1200x1200bb.jpg",
+      "appleMusicUrl": "https://music.apple.com/us/album/52-35-single/1895603022",
+      "youtubeUrl": "https://youtube.com/watch?v=QD6fILLxsKA"
+    },
+    {
+      "title": "52.36",
+      "type": "single",
+      "year": 2026,
+      "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/a8/aa/8c/a8aa8c28-5ec8-a5ae-6200-63f562c6e999/artwork.jpg/1200x1200bb.jpg",
+      "appleMusicUrl": "https://music.apple.com/us/album/52-36-single/1895447310",
+      "youtubeUrl": "https://youtube.com/watch?v=b2S6ZJGgFtE"
+    },
+    {
+      "title": "52.37",
+      "type": "single",
+      "year": 2026,
+      "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/7a/7e/3f/7a7e3fc2-205e-bef1-a411-50c2760bbf82/artwork.jpg/1200x1200bb.jpg",
+      "appleMusicUrl": "https://music.apple.com/us/album/52-37-single/1895635985",
+      "youtubeUrl": "https://youtube.com/watch?v=IoJMhOOlRAM"
+    },
+    {
+      "title": "52.38",
+      "type": "single",
+      "year": 2026,
+      "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music211/v4/a2/f8/0d/a2f80d33-5ffc-9713-3ac8-788636278f5b/artwork.jpg/1200x1200bb.jpg",
+      "appleMusicUrl": "https://music.apple.com/us/album/52-38-single/1895635910",
+      "youtubeUrl": "https://youtube.com/watch?v=PTAXM1IbNWY"
+    },
+    {
+      "title": "52.39",
+      "type": "single",
+      "year": 2026,
+      "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/c5/3b/a5/c53ba57c-db22-8056-9811-a6f72e2d1f9b/artwork.jpg/1200x1200bb.jpg",
+      "appleMusicUrl": "https://music.apple.com/us/album/52-39-single/1895446786",
+      "youtubeUrl": "https://youtube.com/watch?v=7KRX6KqLMYo"
+    },
+    {
+      "title": "52.40",
+      "type": "single",
+      "year": 2026,
+      "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music211/v4/be/49/c4/be49c4e1-e8f7-cbad-5759-95a6a21f7cf0/artwork.jpg/1200x1200bb.jpg",
+      "appleMusicUrl": "https://music.apple.com/us/album/52-40-single/1895622470",
+      "youtubeUrl": "https://youtube.com/watch?v=IeilXuirnQY"
+    },
+    {
+      "title": "52.41",
+      "type": "single",
+      "year": 2026,
+      "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music211/v4/54/d2/59/54d2596c-4c74-9f4c-a788-6292b130d54d/artwork.jpg/1200x1200bb.jpg",
+      "appleMusicUrl": "https://music.apple.com/us/album/52-41-single/6764423503",
+      "youtubeUrl": "https://youtube.com/watch?v=oRjIxHurTs0"
+    },
+    {
+      "title": "52.42",
+      "type": "single",
+      "year": 2026,
+      "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/55/64/0b/55640b4c-3fb9-570e-f64b-bfc6d9fe7a51/artwork.jpg/1200x1200bb.jpg",
+      "appleMusicUrl": "https://music.apple.com/us/album/52-42-single/1895460919",
+      "youtubeUrl": "https://youtube.com/watch?v=vSxtbO8J1Bs"
+    },
+    {
+      "title": "52.43",
+      "type": "single",
+      "year": 2026,
+      "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music211/v4/a3/d9/05/a3d9052e-5be3-c506-ad62-1f6cb5ea77ce/artwork.jpg/1200x1200bb.jpg",
+      "appleMusicUrl": "https://music.apple.com/us/album/52-43-single/1895773981",
+      "youtubeUrl": "https://youtube.com/watch?v=1rKISR82e-8"
+    },
+    {
+      "title": "52.44",
+      "type": "single",
+      "year": 2026,
+      "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music211/v4/23/c7/fc/23c7fca2-69ee-f372-00ff-5ace642a5e89/artwork.jpg/1200x1200bb.jpg",
+      "appleMusicUrl": "https://music.apple.com/us/album/52-44-single/1895622477",
+      "youtubeUrl": "https://youtube.com/watch?v=7KYWpLJoqK0"
+    },
+    {
+      "title": "52.45",
+      "type": "single",
+      "year": 2026,
+      "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/6d/f7/fa/6df7faa2-c8f7-ded8-d506-7a239b580432/artwork.jpg/1200x1200bb.jpg",
+      "appleMusicUrl": "https://music.apple.com/us/album/52-45-single/1895460827",
+      "youtubeUrl": "https://youtube.com/watch?v=VBz2yRqPSyk"
+    },
+    {
+      "title": "52.46",
+      "type": "single",
+      "year": 2026,
+      "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music211/v4/3c/47/7e/3c477e2d-7494-195b-2daf-5fd3acb40668/artwork.jpg/1200x1200bb.jpg",
+      "appleMusicUrl": "https://music.apple.com/us/album/52-46-single/1895460780",
+      "youtubeUrl": "https://youtube.com/watch?v=wRzY5jH-yKQ"
+    },
+    {
+      "title": "52.47",
+      "type": "single",
+      "year": 2026,
+      "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music211/v4/dc/6f/f6/dc6ff672-0d69-fcb3-c3f7-bc81c9aa52b1/artwork.jpg/1200x1200bb.jpg",
+      "appleMusicUrl": "https://music.apple.com/us/album/52-47-single/1895449767",
+      "youtubeUrl": "https://youtube.com/watch?v=YumzSqrJ2rE"
+    },
+    {
+      "title": "52.48",
+      "type": "single",
+      "year": 2026,
+      "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music211/v4/d3/9d/73/d39d73af-c5f6-0b1b-f6d3-0a7674c1bd5f/artwork.jpg/1200x1200bb.jpg",
+      "appleMusicUrl": "https://music.apple.com/us/album/52-48-single/1895629685",
+      "youtubeUrl": "https://youtube.com/watch?v=s0ryDgETR9A"
+    },
+    {
+      "title": "52.49",
+      "type": "single",
+      "year": 2026,
+      "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/ff/38/84/ff388434-6d06-66d2-d853-01c84b9548ad/artwork.jpg/1200x1200bb.jpg",
+      "appleMusicUrl": "https://music.apple.com/us/album/52-49-single/1895464045",
+      "youtubeUrl": "https://youtube.com/watch?v=cLbDZMj902Q"
+    },
+    {
+      "title": "52.50",
+      "type": "single",
+      "year": 2026,
+      "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music211/v4/03/aa/4e/03aa4e62-4ef0-9ded-4157-a43eeb1c64d9/artwork.jpg/1200x1200bb.jpg",
+      "appleMusicUrl": "https://music.apple.com/us/album/52-50-single/1895629695",
+      "youtubeUrl": "https://youtube.com/watch?v=0aKDZo1EO2w"
+    },
+    {
+      "title": "52.51",
+      "type": "single",
+      "year": 2026,
+      "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/b5/53/46/b553466f-42c6-e645-8b0e-f742e8dc3dcc/artwork.jpg/1200x1200bb.jpg",
+      "appleMusicUrl": "https://music.apple.com/us/album/52-51-single/1895777551",
+      "youtubeUrl": "https://youtube.com/watch?v=KzLoE6ufk3c"
+    },
+    {
+      "title": "52.52",
+      "type": "single",
+      "year": 2026,
+      "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music221/v4/bc/b0/f1/bcb0f181-531b-24f4-734a-81efcf779931/artwork.jpg/1200x1200bb.jpg",
+      "appleMusicUrl": "https://music.apple.com/us/album/52-52-single/1895777582",
+      "youtubeUrl": "https://youtube.com/watch?v=uqDHcKHPzsw"
+    },
+    {
+      "title": "_Underscore_",
+      "type": "ep",
+      "year": 2020,
+      "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music114/v4/26/7b/27/267b2725-0b2b-4d3a-a256-a6d83e70ba0f/artwork.jpg/1200x1200bb.jpg",
+      "appleMusicUrl": "https://music.apple.com/us/album/underscore-ep/1532658129"
+    },
+    {
+      "title": "Eight-02.26",
+      "type": "single",
+      "year": 2023,
+      "artworkUrl": "https://is1-ssl.mzstatic.com/image/thumb/Music116/v4/e2/f1/6a/e2f16a7a-0a89-199a-797a-9ae2fb70cfd8/artwork.jpg/1200x1200bb.jpg",
+      "appleMusicUrl": "https://music.apple.com/us/album/eight-02-26-single/1675173377"
+    }
+  ]
+}

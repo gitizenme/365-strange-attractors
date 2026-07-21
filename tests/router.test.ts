@@ -9,11 +9,13 @@ describe('parseRoute', () => {
     expect(parseRoute('/day/042-spirality')).toEqual({ kind: 'day', slug: '042-spirality' });
     expect(parseRoute('/index/')).toEqual({ kind: 'index' });
     expect(parseRoute('/about/')).toEqual({ kind: 'about' });
+    expect(parseRoute('/music/')).toEqual({ kind: 'music' });
     expect(parseRoute('/nonsense')).toEqual({ kind: 'home' });
   });
   it('round-trips through routePath', () => {
     expect(routePath({ kind: 'day', slug: '001-rose' })).toBe('/day/001-rose/');
     expect(parseRoute(routePath({ kind: 'index' }))).toEqual({ kind: 'index' });
+    expect(parseRoute(routePath({ kind: 'music' }))).toEqual({ kind: 'music' });
   });
 });
 
