@@ -302,6 +302,44 @@ export function estimatePolynomialFuncDisplay(rawParams: number[]): { scale: num
   return sampleSettledTrajectory(step, state, 3000, 3000);
 }
 
+// One entry point for "how should this family's live cloud be scaled/positioned/seeded," instead
+// of open() re-deriving it via a chain of `attractor.system === X ? estimateX(...) : null` calls
+// followed by two parallel scale/centerZ ternaries walking the same chain again (the shape that
+// had accumulated by Task 12.5 — each new family added another line to three different places).
+// The individual estimate*Display functions above stay as their own exported, independently
+// tested units (see tests/piece-display.test.ts) — this only consolidates how open() dispatches
+// to them.
+interface DisplayResult { scale: number; centerZ: number; seed?: SeedSpec }
+
+// Lorenz's two chaotic lobes straddle fixed points at local z ≈ rho - 1 (not local z ≈ 0), and its
+// natural coordinate scale (fixed points ~8.5 units apart, full chaotic spread tens of units) is
+// much larger than orbit.ts's fixed default view radius (10, clamped to [3, 30]) — see the fuller
+// explanation this comment used to carry, now folded into the registry entry below.
+const LORENZ_DISPLAY_SCALE = 0.2;
+// Pickover's sin/cos-built map bounds its coordinates to roughly [-1.2, 1.2] regardless of params
+// (empirically confirmed across both real days — see the registry entry below), unlike lorenz_84's
+// ~6x day-to-day spread, so a flat constant works fine here.
+const PICKOVER_DISPLAY_SCALE = 3.2;
+
+const DISPLAY_ESTIMATORS: Record<string, (params: number[]) => DisplayResult> = {
+  // Closed-form scale/centerZ (see the constants' comments above) — no CPU pre-simulation needed,
+  // unlike every other family below.
+  lorenz: params => ({ scale: LORENZ_DISPLAY_SCALE, centerZ: params.length >= 2 ? params[1] - 1 : 0 }),
+  pickover: () => ({ scale: PICKOVER_DISPLAY_SCALE, centerZ: 0 }),
+  // lorenz_84 deliberately drops its own computed `seed`: checked empirically against this
+  // dataset's smallest-dt days and found NOT to show the slow-mixing bug chaotic_flow has (see
+  // estimateLorenz84Display's header comment), so passing it would be an untested code path for an
+  // already-working family, not a fix for anything.
+  lorenz_84: params => ({ ...estimateLorenz84Display(params), seed: undefined }),
+  chaotic_flow: estimateChaoticFlowDisplay,
+  polynomial_c: estimatePolynomialCDisplay,
+  polynomial_func: estimatePolynomialFuncDisplay,
+  polynomial_a: estimatePolynomialADisplay,
+  polynomial_b: estimatePolynomialBDisplay,
+  // Every other in-scope family (currently none — all 7 live families in this dataset are listed
+  // above) falls through to open()'s { scale: 1, centerZ: 0, seed: undefined } default.
+};
+
 export interface LiveDeps {
   attractors: Attractor[];
   renderer: THREE.WebGLRenderer;
@@ -498,42 +536,11 @@ export class PieceView {
     const family = attractor && attractor.system !== 'static-only' ? getFamily(attractor.system) : null;
     if (family && attractor?.params && this.tier && !KNOWN_DEGENERATE_DAYS.has(a.day)) {
       try {
-        // lorenz_84's scale/centerZ can't be a flat constant like Lorenz's — see
-        // estimateLorenz84Display's comment above for why — so compute it per-day instead.
-        const lorenz84Display = attractor.system === 'lorenz_84' ? estimateLorenz84Display(attractor.params) : null;
-        // chaotic_flow needs the same per-day treatment, and for the same reason (see
-        // estimateChaoticFlowDisplay's comment) — its spread varies even more across days than
-        // lorenz_84's does. Computed here, before construction, because its `seed` field also
-        // fixes the slow-mixing initial-cloud bug (see estimateChaoticFlowDisplay's comment and
-        // gpgpu.ts's SeedSpec) and needs to reach the LiveAttractor constructor below.
-        const chaoticFlowDisplay = attractor.system === 'chaotic_flow' ? estimateChaoticFlowDisplay(attractor.params) : null;
-        // polynomial_c and polynomial_func both need the same per-day treatment (see
-        // estimatePolynomialCDisplay's and estimatePolynomialFuncDisplay's comments above for
-        // why each one does, individually — different reasons: polynomial_c is a mild
-        // ~2.5x scale spread across its 2 real days, polynomial_func is a >1000x spread plus a
-        // slow-to-populate day).
-        const polynomialCDisplay = attractor.system === 'polynomial_c' ? estimatePolynomialCDisplay(attractor.params) : null;
-        const polynomialFuncDisplay = attractor.system === 'polynomial_func' ? estimatePolynomialFuncDisplay(attractor.params) : null;
-        // polynomial_a/polynomial_b (Task 12.5, corrected formula -- see estimatePolynomialADisplay's
-        // comment above). polynomial_a in particular NEEDS its seed passed through below: its CPU
-        // estimator deliberately starts from the origin rather than the shared (0.1,0.1,0.1)
-        // convention (that exact point diverges for day 072's real params -- see the comment above),
-        // and while the GPU's own default random-near-origin fallback was empirically checked to
-        // avoid that same unlucky point (0/2000 trials), seeding from real settled-trajectory points
-        // is strictly safer and removes any doubt for this specific fractal-boundary-adjacent case.
-        const polynomialADisplay = attractor.system === 'polynomial_a' ? estimatePolynomialADisplay(attractor.params) : null;
-        const polynomialBDisplay = attractor.system === 'polynomial_b' ? estimatePolynomialBDisplay(attractor.params) : null;
-        // chaotic_flow and polynomial_func get the real-trajectory seed (both have at least one
-        // real day that's slow to populate from LiveAttractor's default near-origin random
-        // seeding within its fixed 150-step constructor settle — see each estimator's comment).
-        // polynomial_c converges fast enough at 150 steps that it doesn't need this, but passing
-        // its seed anyway is harmless (real on-attractor points are always at least as good a
-        // starting cloud as random near-origin noise) and keeps this block uniform. lorenz_84 was
-        // checked empirically and does NOT need it, so it deliberately keeps the default.
-        // polynomial_a/b are included for the fractal-boundary-avoidance reason noted above.
-        const seed = chaoticFlowDisplay?.seed ?? polynomialFuncDisplay?.seed ?? polynomialCDisplay?.seed
-          ?? polynomialADisplay?.seed ?? polynomialBDisplay?.seed;
-        const liveSeed = seed && seed.points.length >= 3 ? seed : undefined;
+        // See DISPLAY_ESTIMATORS above (and each estimate*Display function it wraps) for why each
+        // family's scale/centerZ/seed is what it is. Families with no entry (currently none — all
+        // 7 live families here have one) fall back to an unscaled, uncentered, unseeded default.
+        const display = DISPLAY_ESTIMATORS[attractor.system]?.(attractor.params) ?? { scale: 1, centerZ: 0 };
+        const liveSeed = display.seed && display.seed.points.length >= 3 ? display.seed : undefined;
         // polynomial_func's real archive days have 3 genuinely different underlying parameter-
         // list lengths (21/24/39 — see polynomialFunc.ts's header comment for why), but
         // AttractorFamily/LiveAttractor need one fixed-size params array matching paramCount.
@@ -558,44 +565,11 @@ export class PieceView {
         }
         // The raw point cloud is generated in its own local attractor-space coordinates and needs
         // translating into this artwork's constellation position so it lines up with where the
-        // camera flew to/orbits (x, y). For Lorenz specifically, the two chaotic lobes straddle
-        // fixed points at local z ~= rho - 1 (not local z ~= 0) — e.g. rho=28 centers near z=27 —
-        // so translating only by (a.x, a.y, 0) leaves the cloud sitting behind the orbit camera
-        // (which parks in front of z = 8, see below) and it never becomes visible. Recenter in z
-        // so the cloud's natural cluster lines up with the orbit target instead. Lorenz's natural
-        // coordinate scale (fixed points ~8.5 units apart, full chaotic spread tens of units) is
-        // also much larger than orbit.ts's fixed default view radius (10, clamped to [3, 30]), so
-        // scale the cloud down to fit comfortably within that default framing.
-        const LORENZ_DISPLAY_SCALE = 0.2;
-        // Pickover's map (x' = sin(A*y) - z*cos(B*x), y' = z*sin(C*x) - cos(D*y), z' = sin(x)) is
-        // built entirely from sin/cos terms, which bound its coordinates to roughly [-1.2, 1.2]
-        // regardless of the A/B/C/D params — confirmed empirically by simulating both of this
-        // dataset's pickover days (026-x, 070-tornado-eye) for thousands of iterations across many
-        // random seeds: both settle to maxAbs ~1.19-1.20. Unlike lorenz_84, whose spread varies
-        // ~6x across days with no simple predictive parameter, Pickover's range is consistent day
-        // to day, so a flat display scale (like Lorenz's) works fine here too. The natural cluster
-        // center also sits close to local z=0 for both days (empirically within ±0.15), so unlike
-        // Lorenz, no z-recentering formula is needed — it falls through to the 0 default below.
-        const PICKOVER_DISPLAY_SCALE = 3.2;
-        const centerZ = attractor.system === 'lorenz' && attractor.params.length >= 2 ? attractor.params[1] - 1
-          : lorenz84Display ? lorenz84Display.centerZ
-          : chaoticFlowDisplay ? chaoticFlowDisplay.centerZ
-          : polynomialCDisplay ? polynomialCDisplay.centerZ
-          : polynomialFuncDisplay ? polynomialFuncDisplay.centerZ
-          : polynomialADisplay ? polynomialADisplay.centerZ
-          : polynomialBDisplay ? polynomialBDisplay.centerZ
-          : 0;
-        const scale = attractor.system === 'lorenz' ? LORENZ_DISPLAY_SCALE
-          : attractor.system === 'pickover' ? PICKOVER_DISPLAY_SCALE
-          : lorenz84Display ? lorenz84Display.scale
-          : chaoticFlowDisplay ? chaoticFlowDisplay.scale
-          : polynomialCDisplay ? polynomialCDisplay.scale
-          : polynomialFuncDisplay ? polynomialFuncDisplay.scale
-          : polynomialADisplay ? polynomialADisplay.scale
-          : polynomialBDisplay ? polynomialBDisplay.scale
-          : 1;
-        this.liveAttractor.points.scale.setScalar(scale);
-        this.liveAttractor.points.position.set(a.x, a.y, 8 - scale * centerZ);
+        // camera flew to/orbits (x, y) and, per-family, in z too (recentering some families' off-
+        // origin natural cluster onto the orbit target — see DISPLAY_ESTIMATORS above and each
+        // estimate*Display function for why each family's scale/centerZ is what it is).
+        this.liveAttractor.points.scale.setScalar(display.scale);
+        this.liveAttractor.points.position.set(a.x, a.y, 8 - display.scale * display.centerZ);
         this.orbit = initialOrbitState({ x: a.x, y: a.y, z: 8 }); // a.x/a.y = this piece's constellation position; z matches Phase 1's flyTo z target
         // Calibrate against the real opening camera position/framing before the first visible
         // frame — position the shared camera here first (render() below repositions it from
