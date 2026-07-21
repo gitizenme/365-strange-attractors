@@ -38,9 +38,17 @@ export class MusicView {
       card.href = a.appleMusicUrl;
       card.target = '_blank';
       card.rel = 'noopener';
-      card.innerHTML = `<img loading="lazy" src="${a.artworkUrl}" alt="${a.title}" />
-        <span class="music-album-title">${a.title}</span>
-        <span class="music-album-meta">${a.year} · ${a.trackCount} tracks</span>`;
+      const img = document.createElement('img');
+      img.loading = 'lazy';
+      img.src = a.artworkUrl;
+      img.alt = a.title;
+      const title = document.createElement('span');
+      title.className = 'music-album-title';
+      title.textContent = a.title;
+      const meta = document.createElement('span');
+      meta.className = 'music-album-meta';
+      meta.textContent = `${a.year} · ${a.trackCount} tracks`;
+      card.append(img, title, meta);
       albumGrid.appendChild(card);
     }
 
