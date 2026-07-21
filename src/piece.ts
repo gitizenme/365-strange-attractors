@@ -597,8 +597,15 @@ export class PieceView {
         this.liveAttractor.setBrightness(this.brightness);
         this.liveAttractor.points.scale.setScalar(scale);
         this.liveAttractor.points.position.set(a.x, a.y, 8 - scale * centerZ);
-        this.live_.liveScene.add(this.liveAttractor.points);
         this.orbit = initialOrbitState({ x: a.x, y: a.y, z: 8 }); // a.x/a.y = this piece's constellation position; z matches Phase 1's flyTo z target
+        // Calibrate against the real opening camera position/framing before the first visible
+        // frame — position the shared camera here first (render() below repositions it from
+        // `this.orbit` every subsequent frame anyway, so this is just priming it a frame early).
+        const openPos = orbitCameraPosition(this.orbit);
+        this.live_.camera.position.set(openPos.x, openPos.y, openPos.z);
+        this.live_.camera.lookAt(this.orbit.target.x, this.orbit.target.y, this.orbit.target.z);
+        this.liveAttractor.calibrate(this.live_.renderer, this.live_.camera);
+        this.live_.liveScene.add(this.liveAttractor.points);
         this.live_.controls.setEnabled(false);
       } catch (err) {
         console.error('live attractor init failed, falling back to static', err);

@@ -35,10 +35,11 @@ const RENDER_FRAGMENT = /* glsl */ `
 varying vec3 vColor;
 uniform float uAlpha;
 uniform float uBrightness;
+uniform float uCalibration;
 void main() {
   float d = length(gl_PointCoord - vec2(0.5));
   if (d > 0.5) discard;
-  gl_FragColor = vec4(vColor * uBrightness, (1.0 - d * 2.0) * uAlpha);
+  gl_FragColor = vec4(vColor * uBrightness, (1.0 - d * 2.0) * uAlpha * uCalibration);
 }`;
 
 function computeShader(family: AttractorFamily): string {
@@ -168,10 +169,19 @@ export class LiveAttractor {
       vertexShader: RENDER_VERTEX, fragmentShader: RENDER_FRAGMENT,
       transparent: true, blending: THREE.AdditiveBlending, depthWrite: false,
       uniforms: {
-        uPosition: { value: null }, uTexSize: { value: tier },
+        // Constructor's settling burst above calls the GPUComputationRenderer's own compute()
+        // directly (cheaper in a 150-iteration loop than this class's compute() wrapper, which
+        // also does an uniform-value assignment each call) — but that means uPosition was never
+        // pointed at the result. Point it at the just-settled texture now, or every render before
+        // the game loop's first compute() tick (including calibrate() below) samples a null
+        // sampler, which silently rasterizes nothing — confirmed as the reason a real oversaturated
+        // day was measuring zero rendered coverage and skipping calibration entirely.
+        uPosition: { value: this.gpuCompute.getCurrentRenderTarget(this.positionVariable).texture },
+        uTexSize: { value: tier },
         uPointSize: { value: pointSize },
         uAlpha: { value: alpha },
         uBrightness: { value: 1 },
+        uCalibration: { value: 1 },
         uTint: { value: tint ? tint.clone() : new THREE.Color(1, 1, 1) },
       },
     });
@@ -185,6 +195,63 @@ export class LiveAttractor {
     this.positionVariable.material.uniforms.uMorphMix.value = mix;
   }
   setPerturbation(amount: number): void { this.positionVariable.material.uniforms.uPerturbation.value = amount; }
+
+  // Some days' geometry concentrates far more of the simulated point mass into the same screen-
+  // space area than the tier-based ink formula above assumes — e.g. a near-limit-cycle lorenz_84
+  // orbit, or a family/day whose display `scale` renders it small — which saturates the whole
+  // cloud to flat white regardless of tier or the user's brightness slider (confirmed on real
+  // hardware: still fully white even at the slider's minimum). A CPU-side density estimate from
+  // the raw simulated positions was tried and discarded — it doesn't correlate with the actual
+  // on-screen result (verified empirically: some visually-fine days scored WORSE than the broken
+  // ones, because the real saturation the additive shader produces depends on the final on-screen
+  // projection — camera distance, this piece's display `scale`, point size in device pixels — not
+  // just the point cloud's own shape in simulation space).
+  //
+  // This instead measures the actual rendered outcome directly: render the real points with the
+  // real camera into a small offscreen target, read back a sample, and see what fraction of pixels
+  // that have any coverage are already fully clipped to white. If too many are, scale the ink down
+  // and measure again. Self-correcting regardless of *why* a given day oversaturates, since it
+  // reacts to the true result rather than predicting it from geometry. Call once after the points'
+  // final scale/position are set and the camera is at its opening position, before the first
+  // user-visible frame. Defensive: falls back to no adjustment (today's existing behavior) if
+  // render-target readback fails or is unsupported on this device.
+  calibrate(renderer: THREE.WebGLRenderer, camera: THREE.PerspectiveCamera): void {
+    // 512, not a smaller/cheaper size: some of the days this exists to catch (e.g. a family/day
+    // whose display `scale` renders it small on screen — see piece.ts) occupy only a small
+    // fraction of the frame, and a coarser sample can miss enough of that shape's pixels to fall
+    // under the `covered` floor below, silently skipping calibration for exactly the cloud that
+    // needs it most (confirmed: 128 missed a real tiny-on-screen case that 512 catches).
+    const SIZE = 512;
+    let target: THREE.WebGLRenderTarget | null = null;
+    try {
+      target = new THREE.WebGLRenderTarget(SIZE, SIZE);
+      const scratchScene = new THREE.Scene();
+      scratchScene.add(this.points);
+      const prevTarget = renderer.getRenderTarget();
+      const buf = new Uint8Array(SIZE * SIZE * 4);
+      for (let attempt = 0; attempt < 3; attempt++) {
+        renderer.setRenderTarget(target);
+        renderer.clear();
+        renderer.render(scratchScene, camera);
+        renderer.readRenderTargetPixels(target, 0, 0, SIZE, SIZE, buf);
+        let covered = 0, saturated = 0;
+        for (let i = 0; i < SIZE * SIZE; i++) {
+          const r = buf[i * 4], g = buf[i * 4 + 1], b = buf[i * 4 + 2];
+          if (r < 4 && g < 4 && b < 4) continue; // background, no point coverage here
+          covered++;
+          if (r > 250 && g > 250 && b > 250) saturated++;
+        }
+        if (covered < 8) break; // nothing meaningful landed in the sample; leave calibration alone
+        const saturatedFraction = saturated / covered;
+        if (saturatedFraction < 0.35) break; // acceptable — most of the visible cloud isn't clipped
+        // Scale down proportionally to how bad it is, floor well above zero so the cloud never
+        // fully vanishes; re-measure to confirm rather than assuming one correction is enough.
+        this.material.uniforms.uCalibration.value = Math.max(0.02, this.material.uniforms.uCalibration.value * (1 - saturatedFraction));
+      }
+      renderer.setRenderTarget(prevTarget);
+    } catch { /* render-target readback unsupported on this device — leave uncalibrated */ }
+    finally { target?.dispose(); }
+  }
 
   // User-facing brightness control (see the piece-view slider). A pure color-intensity multiplier
   // on top of the already-tuned per-tier alpha/point-size (which stay fixed) — deliberately NOT
