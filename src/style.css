@@ -17,11 +17,37 @@ html, body { height: 100%; background: #06070a; color: #cfd3dc; font-family: Geo
 }
 #time-toggle[aria-pressed="true"] { background: #cfd3dc; color: #10131a; }
 
+/* .piece itself no longer paints a background or transitions opacity (that moved to
+   .piece-backdrop below) -- it's purely the positioning container now, so it never has an
+   `opacity` other than 1 and therefore never creates a stacking context that could trap
+   .piece-close's z-index (see the longer explanation above #time-toggle/#index-toggle/
+   #music-toggle's shared z-index rule further down). */
 .piece {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  gap: 12px;
+}
+/* Fills the exact same box .piece used to fill (position:absolute;inset:0, same as .piece) and
+   carries the same flex arrangement .piece used to have, so prev/figure/next -- now nested one
+   level deeper, inside this wrapper instead of directly inside .piece -- are laid out identically
+   to before. This element, not .piece, is what actually dims in/out: it's the one with
+   `transition: opacity`, so IT (and only its own descendants: prev/figure/next) can ever be
+   trapped in a stacking context mid-fade -- .piece-close lives outside it as a sibling, so it's
+   never affected. */
+.piece-backdrop {
   position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
   gap: 12px; background: rgba(4,5,8,0.82); transition: opacity 0.35s; opacity: 1;
 }
+/* .piece itself has no `transition`, so this flips instantly (no animated frames) whenever
+   `.hidden` toggles -- there's no mid-transition window on .piece itself to worry about.
+   pointer-events:none here is what actually blocks clicks while hidden; the opacity:0 is now
+   redundant with .piece-backdrop/.piece-close's own opacity (below) but harmless to leave. */
 #overlay > .piece.hidden { opacity: 0; pointer-events: none; }
+.piece.hidden .piece-backdrop { opacity: 0; }
+/* .piece-close fades independently (its own transition, not inherited/triggered by an ancestor)
+   so it still visually appears to fade in/out in lockstep with .piece-backdrop -- same duration,
+   same trigger (the `.hidden` class) -- without ever being a descendant of an opacity-animating
+   ancestor. */
+.piece.hidden .piece-close { opacity: 0; }
 /* While a live attractor is rendering behind the piece, let drag/wheel input pass through this
    backdrop to the #gl canvas underneath (so bindOrbitEvents' canvas listeners receive it), and
    only keep the nav/close buttons clickable. Selector needs to match #overlay > * { pointer-events:
@@ -38,8 +64,14 @@ html, body { height: 100%; background: #06070a; color: #cfd3dc; font-family: Geo
 .piece-nav:hover, .piece-close:hover { color: #fff; }
 /* z-index:2 -- must beat #time-toggle's z-index:1 (see below), since .piece-close sits at nearly
    the same top-right corner as #time-toggle and, being a same-level positioned sibling with a lower
-   z-index, would otherwise lose the overlap and become unclickable/invisible while a piece is open. */
-.piece-close { position: absolute; top: 8px; right: 14px; font-size: 30px; z-index: 2; }
+   z-index, would otherwise lose the overlap and become unclickable/invisible while a piece is open.
+   opacity/transition: its own independent fade, matching .piece-backdrop's timing (see above) so
+   the close button and the dimmed backdrop visually fade in/out together, without .piece-close
+   ever being a descendant of the thing whose opacity is animating. */
+.piece-close {
+  position: absolute; top: 8px; right: 14px; font-size: 30px; z-index: 2;
+  opacity: 1; transition: opacity 0.35s;
+}
 @media (max-width: 700px) { .piece-nav { position: absolute; bottom: 8px; } .piece-nav.prev { left: 20vw; } .piece-nav.next { right: 20vw; } }
 
 #index-toggle { position: absolute; top: 16px; right: 96px; background: rgba(20,24,32,0.7);
@@ -81,7 +113,9 @@ html, body { height: 100%; background: #06070a; color: #cfd3dc; font-family: Geo
    mutes the live cloud once the image is hidden — the static reference renders show on pure black
    at full brightness, so drop the dimming overlay here to match (the render loop in main.ts also
    skips drawing the constellation behind the cloud in this state, for the same reason). */
-.piece.hide-static { background: transparent; }
+/* Targets .piece-backdrop, not .piece -- the dimming `background` moved there (see above), so the
+   override that drops it in hide-static mode has to follow it. */
+.piece.hide-static .piece-backdrop { background: transparent; }
 
 #brightness-slider { position: absolute; bottom: 22px; right: 140px; width: 130px; height: 24px;
   accent-color: #cfd3dc; cursor: pointer; display: none; background: rgba(20,24,32,0.7);

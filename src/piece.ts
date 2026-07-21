@@ -401,18 +401,32 @@ export class PieceView {
     this.byDay = new Map(artworks.map(a => [a.day, a]));
     this.root = document.createElement('div');
     this.root.className = 'piece hidden';
+    // prev/figure/next live inside .piece-backdrop (the thing that actually fades in/out and
+    // paints the dimming background) rather than directly under .piece -- .piece-close stays a
+    // direct child of .piece, OUTSIDE that wrapper. This is a fix for a stacking-context bug (see
+    // style.css's comments on .piece/.piece-backdrop/.piece-close): an element with opacity < 1
+    // creates its own stacking context that traps its descendants' z-index values, so while
+    // .piece-backdrop was still .piece itself and had `transition: opacity`, .piece-close's
+    // z-index (needed to beat #time-toggle, which sits in nearly the same corner) was briefly
+    // trapped and ineffective during every fade-in, letting #time-toggle steal the click. Moving
+    // the fading backdrop to a sibling wrapper and giving .piece-close its own independent opacity
+    // transition (style.css) means .piece-close is never a descendant of anything that's
+    // opacity-animating, so its z-index always compares directly against #time-toggle's.
     this.root.innerHTML = `
-      <button class="piece-nav prev" aria-label="Previous day" title="Previous day">‹</button>
-      <figure>
-        <picture>
-          <source type="image/avif" /><source type="image/webp" />
-          <img alt="" />
-        </picture>
-        <figcaption></figcaption>
-      </figure>
-      <button class="piece-nav next" aria-label="Next day" title="Next day">›</button>
+      <div class="piece-backdrop">
+        <button class="piece-nav prev" aria-label="Previous day" title="Previous day">‹</button>
+        <figure>
+          <picture>
+            <source type="image/avif" /><source type="image/webp" />
+            <img alt="" />
+          </picture>
+          <figcaption></figcaption>
+        </figure>
+        <button class="piece-nav next" aria-label="Next day" title="Next day">›</button>
+      </div>
       <button class="piece-close" aria-label="Close" title="Close">×</button>`;
     overlay.appendChild(this.root);
+    const backdrop = this.root.querySelector('.piece-backdrop')!;
     const [avif, webp] = this.root.querySelectorAll('source');
     this.sources = { avif, webp };
     this.img = this.root.querySelector('img')!;
@@ -420,7 +434,10 @@ export class PieceView {
     this.root.querySelector('.prev')!.addEventListener('click', () => this.nav(-1));
     this.root.querySelector('.next')!.addEventListener('click', () => this.nav(1));
     this.root.querySelector('.piece-close')!.addEventListener('click', () => this.requestClose());
-    this.root.addEventListener('click', e => { if (e.target === this.root) this.requestClose(); });
+    // .piece-backdrop now fills the exact same box .piece itself used to (see style.css) and sits
+    // on top of it, so a background click lands with e.target === backdrop, not === this.root --
+    // both must be treated as "clicked outside the figure/nav/close" to keep this working.
+    this.root.addEventListener('click', e => { if (e.target === this.root || e.target === backdrop) this.requestClose(); });
     addEventListener('keydown', e => {
       if (!this.isOpen()) return;
       if (e.key === 'Escape') this.requestClose();
