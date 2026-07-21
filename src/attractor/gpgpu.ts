@@ -216,26 +216,39 @@ export class LiveAttractor {
   // user-visible frame. Defensive: falls back to no adjustment (today's existing behavior) if
   // render-target readback fails or is unsupported on this device.
   calibrate(renderer: THREE.WebGLRenderer, camera: THREE.PerspectiveCamera): void {
-    // 512, not a smaller/cheaper size: some of the days this exists to catch (e.g. a family/day
-    // whose display `scale` renders it small on screen — see piece.ts) occupy only a small
-    // fraction of the frame, and a coarser sample can miss enough of that shape's pixels to fall
-    // under the `covered` floor below, silently skipping calibration for exactly the cloud that
-    // needs it most (confirmed: 128 missed a real tiny-on-screen case that 512 catches).
-    const SIZE = 512;
+    // Grayscale/near-noise palettes deliberately render in plain white (see palette.ts's
+    // MIN_MEANINGFUL_SATURATION fallback) — that's the intended look, not saturation to correct.
+    // At tier 256 in particular, alpha is unconditionally 1.0 by design (see its comment above), so
+    // even a single non-overlapping white-tinted point's center pixel legitimately reads as pure
+    // white — indistinguishable from this method's "clipped" signal. Skip entirely for white tints
+    // rather than risk needlessly darkening an intentionally white cloud.
+    const tintColor = this.material.uniforms.uTint.value as THREE.Color;
+    if (tintColor.r > 0.99 && tintColor.g > 0.99 && tintColor.b > 0.99) return;
+    // Match the real camera's aspect ratio rather than forcing a square target — otherwise the
+    // sampled framing is a stretched version of the actual on-screen composition. ~512x512's worth
+    // of total texels: some of the days this exists to catch (e.g. a family/day whose display
+    // `scale` renders it small on screen — see piece.ts) occupy only a small fraction of the frame,
+    // and a coarser sample can miss enough of that shape's pixels to fall under the `covered` floor
+    // below, silently skipping calibration for exactly the cloud that needs it most (confirmed: a
+    // 128x128 sample missed a real tiny-on-screen case that this resolution catches).
+    const aspect = camera.aspect || 1;
+    const AREA = 512 * 512;
+    const H = Math.max(1, Math.round(Math.sqrt(AREA / aspect)));
+    const W = Math.max(1, Math.round(H * aspect));
     let target: THREE.WebGLRenderTarget | null = null;
     try {
-      target = new THREE.WebGLRenderTarget(SIZE, SIZE);
+      target = new THREE.WebGLRenderTarget(W, H);
       const scratchScene = new THREE.Scene();
       scratchScene.add(this.points);
       const prevTarget = renderer.getRenderTarget();
-      const buf = new Uint8Array(SIZE * SIZE * 4);
+      const buf = new Uint8Array(W * H * 4);
       for (let attempt = 0; attempt < 3; attempt++) {
         renderer.setRenderTarget(target);
         renderer.clear();
         renderer.render(scratchScene, camera);
-        renderer.readRenderTargetPixels(target, 0, 0, SIZE, SIZE, buf);
+        renderer.readRenderTargetPixels(target, 0, 0, W, H, buf);
         let covered = 0, saturated = 0;
-        for (let i = 0; i < SIZE * SIZE; i++) {
+        for (let i = 0; i < W * H; i++) {
           const r = buf[i * 4], g = buf[i * 4 + 1], b = buf[i * 4 + 2];
           if (r < 4 && g < 4 && b < 4) continue; // background, no point coverage here
           covered++;
