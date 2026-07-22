@@ -4,6 +4,8 @@ import { execFileSync } from 'node:child_process';
 import { buildDays } from './manifest.mjs';
 import { makeDerivatives, buildAtlas } from './images.mjs';
 import { buildAttractors } from './attractors.mjs';
+import { buildOgCard, buildFavicons } from './social.mjs';
+import { renderSitemap } from './sitemap.mjs';
 
 const ARCHIVE = resolve('..');
 const OUT = resolve('public');
@@ -58,3 +60,20 @@ const attractors = buildAttractors(days, ARCHIVE, { readdirSync, readFileSync })
 writeFileSync(join(OUT, 'data', 'attractors.json'), JSON.stringify(attractors));
 const inScope = attractors.filter(a => a.system !== 'static-only').length;
 console.log(`attractors.json: ${attractors.length} entries, ${inScope} in-scope`);
+
+if (force || !existsSync(join(OUT, 'og', 'card.jpg'))) {
+  await buildOgCard(join(ARCHIVE, 'mosaic', '365_Moaic_No_Watermark.png'), join(OUT, 'og', 'card.jpg'));
+  console.log('og card written');
+} else {
+  console.log('og card cached');
+}
+
+if (force || !existsSync(join(OUT, 'favicon.ico'))) {
+  await buildFavicons(join(ARCHIVE, 'generated', '086_Medusa.jpg'), OUT);
+  console.log('favicons written');
+} else {
+  console.log('favicons cached');
+}
+
+writeFileSync(join(OUT, 'sitemap.xml'), renderSitemap(days));
+console.log(`sitemap.xml: ${days.length + 1} urls`);

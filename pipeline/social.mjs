@@ -6,7 +6,7 @@ import pngToIco from 'png-to-ico';
 // Crop position for the OG card. 'attention' biases toward the busiest region;
 // adjust to 'centre' or an explicit extract if the visual check (build.mjs step)
 // shows the numerals clipped.
-export const OG_CROP_POSITION = 'attention';
+export const OG_CROP_POSITION = 'centre';
 
 export async function buildOgCard(srcPath, outPath) {
   if (!existsSync(srcPath)) throw new Error(`og card source missing: ${srcPath}`);
