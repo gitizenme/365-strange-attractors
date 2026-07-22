@@ -3,16 +3,29 @@ import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import pngToIco from 'png-to-ico';
 
-// Crop position for the OG card. 'attention' biases toward the busiest region;
-// adjust to 'centre' or an explicit extract if the visual check (build.mjs step)
-// shows the numerals clipped.
-export const OG_CROP_POSITION = 'centre';
-
+// The "365" numerals in the source mosaic span the full frame edge-to-edge in
+// both dimensions, so no crop (any position keyword) can show them whole at
+// the card's wider aspect ratio. Instead: a blurred, darkened cover-fit copy
+// fills the frame as background, and the untouched mosaic is scaled to fit
+// entirely within the frame (by height) and composited on top, letterboxed
+// by the blurred fill rather than hard black bars.
 export async function buildOgCard(srcPath, outPath) {
   if (!existsSync(srcPath)) throw new Error(`og card source missing: ${srcPath}`);
   mkdirSync(dirname(outPath), { recursive: true });
-  await sharp(srcPath)
-    .resize(1200, 630, { fit: 'cover', position: OG_CROP_POSITION })
+
+  const background = await sharp(srcPath)
+    .resize(1200, 630, { fit: 'cover' })
+    .blur(25)
+    .modulate({ brightness: 0.5 })
+    .toBuffer();
+
+  const foreground = await sharp(srcPath)
+    .resize(1200, 630, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
+    .png()
+    .toBuffer();
+
+  await sharp(background)
+    .composite([{ input: foreground }])
     .jpeg({ quality: 80, mozjpeg: true })
     .toFile(outPath);
 }
