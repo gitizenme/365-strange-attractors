@@ -1,20 +1,24 @@
-const esc = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+import { esc, metaTags } from './site.mjs';
 
 export function renderPiecePage(a) {
   const num = String(a.day).padStart(3, '0');
   const t = esc(a.title);
   const name = `${t} — ${num}/365`;
   const srcset = ext => `/images/1024/${a.slug}.${ext} 1024w, /images/2000/${a.slug}.${ext} 2000w`;
+  const head = metaTags({
+    title: `${a.title} — ${num}/365 Strange Attractors`,
+    description: `${a.title}, a strange attractor created on day ${a.day} of 365 in 2010.`,
+    image: { path: `/images/1024/${a.slug}.jpg`, alt: `${a.title} — strange attractor, day ${a.day} of 365, 2010` },
+    url: `/day/${a.slug}/`,
+    type: 'article',
+  });
   return `<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>${name} Strange Attractors</title>
-<meta property="og:title" content="${name} Strange Attractors" />
-<meta property="og:type" content="article" />
-<meta property="og:image" content="/images/1024/${a.slug}.jpg" />
-<meta name="description" content="${t}, a strange attractor created on day ${a.day} of 365 in 2010." />
+${head}
 <link rel="stylesheet" href="/assets/index.css" />
 </head>
 <body>
