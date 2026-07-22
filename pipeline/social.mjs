@@ -42,8 +42,8 @@ export async function buildFavicons(srcPath, outRoot) {
 
   await base.clone().resize(180, 180).png().toFile(join(outRoot, 'apple-touch-icon.png'));
 
-  const png32 = await base.clone().resize(32, 32).png().toBuffer();
-  writeFileSync(join(outRoot, 'favicon.ico'), await pngToIco(png32));
+  const icoPngs = await Promise.all([16, 32, 48].map(s => base.clone().resize(s, s).png().toBuffer()));
+  writeFileSync(join(outRoot, 'favicon.ico'), await pngToIco(icoPngs));
 
   const png64 = await base.clone().resize(64, 64).png().toBuffer();
   writeFileSync(join(outRoot, 'icon.svg'),
