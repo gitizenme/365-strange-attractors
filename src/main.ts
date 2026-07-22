@@ -117,7 +117,7 @@ async function boot() {
   overlay.appendChild(indexBtn);
   indexBtn.addEventListener('click', () => router.go({ kind: 'index' }));
   addEventListener('keydown', e => {
-    if (e.key === '/' && !piece.isOpen() && !index.isOpen()) { e.preventDefault(); router.go({ kind: 'index' }); }
+    if (e.key === '/' && !piece.isOpen() && !index.isOpen() && !music?.isOpen()) { e.preventDefault(); router.go({ kind: 'index' }); }
     if (e.key === 'Escape' && index.isOpen()) router.go({ kind: 'home' });
   });
 
@@ -187,7 +187,7 @@ async function boot() {
       con.renderer.render(liveScene, con.camera);
       con.renderer.autoClear = true;
     }
-    if (!piece.isOpen() && !index.isOpen()) {
+    if (!piece.isOpen() && !index.isOpen() && !music?.isOpen()) {
       labels.update(con.camera, canvas, i => con.positionOf(i));
       minimap.update(con.camera, canvas, i => con.positionOf(i));
     } else {

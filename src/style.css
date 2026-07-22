@@ -37,11 +37,15 @@ html, body { height: 100%; background: #06070a; color: #cfd3dc; font-family: Geo
   position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
   gap: 12px; background: rgba(4,5,8,0.82); transition: opacity 0.35s; opacity: 1;
 }
-/* .piece itself has no `transition`, so this flips instantly (no animated frames) whenever
-   `.hidden` toggles -- there's no mid-transition window on .piece itself to worry about.
-   pointer-events:none here is what actually blocks clicks while hidden; the opacity:0 is now
-   redundant with .piece-backdrop/.piece-close's own opacity (below) but harmless to leave. */
-#overlay > .piece.hidden { opacity: 0; pointer-events: none; }
+/* pointer-events:none is what blocks clicks while hidden. Deliberately no opacity:0 here (and no
+   `transition` on .piece at all): .piece has no `transition` property, so an opacity:0 on this
+   rule would flip instantly the moment `.hidden` is added -- and since rendered opacity is the
+   product of an element's own opacity and its ancestors', that instant 0 on the parent would mask
+   .piece-backdrop/.piece-close's own independent 0.35s fade-out transitions (below) before they
+   ever got to play, even though those two already handle the actual dimming-to-invisible
+   themselves. Leaving .piece's own opacity untouched (always effectively 1) lets their transitions
+   be the only thing visitors see. */
+#overlay > .piece.hidden { pointer-events: none; }
 .piece.hidden .piece-backdrop { opacity: 0; }
 /* .piece-close fades independently (its own transition, not inherited/triggered by an ancestor)
    so it still visually appears to fade in/out in lockstep with .piece-backdrop -- same duration,
@@ -62,14 +66,18 @@ html, body { height: 100%; background: #06070a; color: #cfd3dc; font-family: Geo
   background: none; border: none; color: #9aa1b0; font-size: 40px; cursor: pointer; padding: 12px;
 }
 .piece-nav:hover, .piece-close:hover { color: #fff; }
-/* z-index:2 -- must beat #time-toggle's z-index:1 (see below), since .piece-close sits at nearly
-   the same top-right corner as #time-toggle and, being a same-level positioned sibling with a lower
-   z-index, would otherwise lose the overlap and become unclickable/invisible while a piece is open.
+/* top:64px sits below the toggle row (#time-toggle/#index-toggle/#music-toggle end around
+   y=45px), not on top of it -- earlier this shared #time-toggle's exact corner and visually
+   merged into a "Time[x]" look even though both stayed independently clickable. z-index:2 is a
+   second line of defense, not the thing doing the separating: must still beat #time-toggle's
+   z-index:1 (see below) in case any future layout change reintroduces overlap, since a same-level
+   positioned sibling with a lower z-index would otherwise lose the overlap and become
+   unclickable/invisible while a piece is open.
    opacity/transition: its own independent fade, matching .piece-backdrop's timing (see above) so
    the close button and the dimmed backdrop visually fade in/out together, without .piece-close
    ever being a descendant of the thing whose opacity is animating. */
 .piece-close {
-  position: absolute; top: 8px; right: 14px; font-size: 30px; z-index: 2;
+  position: absolute; top: 64px; right: 14px; font-size: 30px; z-index: 2;
   opacity: 1; transition: opacity 0.35s;
 }
 @media (max-width: 700px) { .piece-nav { position: absolute; bottom: 8px; } .piece-nav.prev { left: 20vw; } .piece-nav.next { right: 20vw; } }
@@ -95,10 +103,11 @@ html, body { height: 100%; background: #06070a; color: #cfd3dc; font-family: Geo
    impossible to click "Index" to switch away from Music. A positive z-index lifts all three above
    any z-index:auto backdrop regardless of DOM order.
    This must stay LOWER than each view's own close control (.piece-close, .music-close: z-index 2)
-   -- .piece-close and .music-close each occupy nearly the same top-right corner as these toggles,
-   and whichever view is actually open needs its own × to win that overlap, not the always-visible
-   toggle row underneath it. IndexView has no dedicated close button (only Escape/route-away close
-   it), so there's no third collision to resolve there. */
+   -- both now sit below this row (top:64px) rather than on top of it, but z-index is kept as a
+   second line of defense: if they ever overlap again, whichever view is actually open needs its
+   own × to win that overlap, not the always-visible toggle row underneath it. IndexView has no
+   dedicated close button (only Escape/route-away close it), so there's no third collision to
+   resolve there. */
 #time-toggle, #index-toggle, #music-toggle { z-index: 1; }
 
 #hide-image-toggle { position: absolute; bottom: 16px; right: 16px; background: rgba(20,24,32,0.7);
@@ -160,12 +169,14 @@ html, body { height: 100%; background: #06070a; color: #cfd3dc; font-family: Geo
   background: #12141a; color: #cfd3dc;
   padding: 48px 24px; box-sizing: border-box;
 }
-/* z-index:2 (bumped from Task 4's original z-index:1) -- must beat #time-toggle's z-index:1, since
-   .music-close sits at the exact same top-right corner (top:16px;right:16px) and, as a same-level
-   positioned sibling with a lower z-index, would otherwise lose that overlap to the always-visible
-   toggle row while Music is open. */
+/* top:64px sits below the toggle row instead of at its exact corner (top:16px;right:16px, where
+   this used to sit directly on top of #time-toggle and read as a merged "Time[x]" look, even
+   though both stayed independently clickable). z-index:2 remains a second line of defense -- must
+   still beat #time-toggle's z-index:1, since as a same-level positioned sibling with a lower
+   z-index it would otherwise lose any future overlap to the always-visible toggle row while Music
+   is open. */
 .music-close {
-  position: fixed; top: 16px; right: 16px; z-index: 2;
+  position: fixed; top: 64px; right: 16px; z-index: 2;
   font-size: 28px; line-height: 1; background: none; border: none; color: #cfd3dc; cursor: pointer;
 }
 .music-header { max-width: 640px; margin: 0 auto 40px; text-align: center; }
