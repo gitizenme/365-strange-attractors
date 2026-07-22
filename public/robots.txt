@@ -1,0 +1,3 @@
+# Served from the origin (GitHub Pages). Cloudflare's managed robots.txt block
+# is combined with this content at the edge.
+Sitemap: https://chaosofzen.dev/sitemap.xml
