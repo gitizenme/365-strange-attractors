@@ -43,8 +43,12 @@ void main() {
 
 const FRAG = /* glsl */ `
 uniform sampler2D uAtlas;
+uniform float uBrightness;
 varying vec2 vUv;
-void main() { gl_FragColor = texture2D(uAtlas, vUv); }`;
+void main() {
+  vec4 c = texture2D(uAtlas, vUv);
+  gl_FragColor = vec4(min(c.rgb * uBrightness, vec3(1.0)), c.a);
+}`;
 
 export class Constellation {
   readonly camera: THREE.PerspectiveCamera;
@@ -94,7 +98,7 @@ export class Constellation {
     smallTex.colorSpace = THREE.SRGBColorSpace;
     this.material = new THREE.ShaderMaterial({
       vertexShader: VERT, fragmentShader: FRAG,
-      uniforms: { uAtlas: { value: smallTex }, uTime: { value: 0 }, uDrift: { value: 1 }, uMix: { value: 0 }, uSize: { value: 1.6 } },
+      uniforms: { uAtlas: { value: smallTex }, uTime: { value: 0 }, uDrift: { value: 1 }, uMix: { value: 0 }, uSize: { value: 1.6 }, uBrightness: { value: 1.25 } },
     });
     // Full-resolution tile atlas loads in the background and swaps in on arrival (single-frame
     // texture-uniform swap, no geometry/shader change) -- the preview tier above is already
