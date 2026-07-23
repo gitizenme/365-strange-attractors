@@ -33,14 +33,16 @@ async function boot() {
   const reduced = matchMedia('(prefers-reduced-motion: reduce)');
   con.setReducedMotion(reduced.matches);
   const controls = new Controls(canvas, con.camera, bounds, { reducedMotion: reduced.matches });
-  // Fits the whole cloud (UMAP layout union time-spiral layout, padded -- see computeCloudBounds)
+  // Fits the CURRENT layout's own cloud (not the union pan-clamp bounds above -- fitting the
+  // union leaves the visible likeness cloud at ~43% fill, see computeCloudBounds' comment)
   // centered in frame at ~85% of the limiting viewport dimension, replacing the old fixed
-  // (0,0,120) camera start. Re-applied on resize/rotate (viewport aspect changed) but only until
+  // (0,0,120) camera start. Re-applied on resize/rotate and on layout toggle, but only until
   // the visitor's first pan/zoom -- Controls.hasUserMoved() flips permanently on the first drag
   // or wheel event, after which their own framing choice is never overridden from under them.
+  let timeMode = false;
   const applyFraming = () => {
     const aspect = canvas.clientWidth / canvas.clientHeight;
-    const fit = fitCamera(bounds, aspect, con.camera.fov, 0.85);
+    const fit = fitCamera(computeCloudBounds(artworks, timeMode ? 'date' : 'likeness'), aspect, con.camera.fov, 0.85);
     con.camera.position.set(fit.x, fit.y, fit.z);
   };
   applyFraming();
@@ -54,11 +56,13 @@ async function boot() {
   timeBtn.title = 'Arrange by date instead of visual similarity';
   timeBtn.setAttribute('aria-pressed', 'false');
   overlay.appendChild(timeBtn);
-  let timeMode = false;
   timeBtn.addEventListener('click', () => {
     timeMode = !timeMode;
     timeBtn.setAttribute('aria-pressed', String(timeMode));
     con.setTimeMix(timeMode ? 1 : 0);
+    // The two layouts have very different extents (~92x52 vs ~93x93) -- refit so the one the
+    // visitor just switched to is the one framed at ~85%, unless they've already taken over.
+    if (!controls.hasUserMoved()) applyFraming();
   });
 
   const minimap = new Minimap(overlay, artworks, (x, y) => controls.flyTo(x, y, con.camera.position.z, 0.6));

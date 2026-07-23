@@ -39,4 +39,21 @@ describe('computeCloudBounds', () => {
     const bounds = computeCloudBounds(artworks);
     expect(bounds.maxY).toBeGreaterThan(40);
   });
+
+  it('likeness layout bounds cover only the UMAP positions', () => {
+    const artworks = [{ day: 365, x: 2, y: -1 }, { day: 1, x: -4, y: 3 }];
+    const b = computeCloudBounds(artworks, 'likeness');
+    // spiralPosition(365) is near (0, 50); a likeness fit must NOT be inflated by it
+    expect(b.maxY).toBeLessThan(10);
+    expect(b.minX).toBeCloseTo(-4 - 6 * 0.1, 5);
+    expect(b.maxX).toBeCloseTo(2 + 6 * 0.1, 5);
+  });
+
+  it('date layout bounds cover only the spiral positions', () => {
+    const artworks = [{ day: 365, x: 900, y: 900 }]; // far-away UMAP point must not leak in
+    const b = computeCloudBounds(artworks, 'date');
+    expect(b.maxX).toBeLessThan(60);
+    expect(b.maxY).toBeGreaterThan(40);
+    expect(b.maxY).toBeLessThan(60);
+  });
 });

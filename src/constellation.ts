@@ -11,16 +11,23 @@ export function atlasUv(atlas: Atlas, slug: string) {
   return { u: col * su, v: 1 - (row + 1) * sv, su, sv };
 }
 
-// Union of the UMAP layout (a.x, a.y) and the time-spiral layout (spiralPosition(a.day)),
-// padded ~10% on each axis. Padded so the visitor never sees content flush against the edge, and
-// unioned (not just UMAP) so switching to Time mode never pushes sprites out of frame -- the
-// spiral's radius (up to 50, see spiralPosition) doesn't always agree with the UMAP layout's own
-// extent.
-export function computeCloudBounds(artworks: { day: number; x: number; y: number }[]): Bounds {
+// Bounds of the cloud, padded ~10% on each axis so the visitor never sees content flush against
+// the edge. Two distinct consumers need two distinct shapes:
+// - 'union' (default): UMAP layout (a.x, a.y) ∪ time-spiral layout (spiralPosition(a.day)) — the
+//   PAN CLAMP. Unioned so switching to Time mode never strands sprites outside the pannable range;
+//   the spiral's radius (up to 50, see spiralPosition) doesn't always agree with the UMAP extent.
+// - 'likeness' / 'date': one layout only — the FRAMING fit. Fitting the union instead visibly
+//   breaks the ~85%-fill goal: the real archive's UMAP layout is ~92x52 world units while the
+//   union is ~106x102 (near-square), so on a wide viewport fitCamera(union) is height-limited and
+//   the actually-visible likeness cloud fills only ~43% of the screen (measured, Task 9).
+export function computeCloudBounds(artworks: { day: number; x: number; y: number }[],
+                                   layout: 'union' | 'likeness' | 'date' = 'union'): Bounds {
   let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
   for (const a of artworks) {
-    const s = spiralPosition(a.day);
-    for (const p of [{ x: a.x, y: a.y }, s]) {
+    const pts = layout === 'likeness' ? [{ x: a.x, y: a.y }]
+      : layout === 'date' ? [spiralPosition(a.day)]
+      : [{ x: a.x, y: a.y }, spiralPosition(a.day)];
+    for (const p of pts) {
       minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x);
       minY = Math.min(minY, p.y); maxY = Math.max(maxY, p.y);
     }
