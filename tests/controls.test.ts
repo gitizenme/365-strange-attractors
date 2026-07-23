@@ -13,9 +13,10 @@ describe('stepInertia', () => {
 });
 
 describe('clampCamera', () => {
-  it('clamps xy to bounds and z to range', () => {
-    expect(clampCamera({ x: 100, y: -100, z: 1 }, 60, 4, 140)).toEqual({ x: 60, y: -60, z: 4 });
-    expect(clampCamera({ x: 0, y: 0, z: 200 }, 60, 4, 140)).toEqual({ x: 0, y: 0, z: 140 });
+  it('clamps xy independently to a center+extent box and z to range', () => {
+    const bounds = { minX: -60, maxX: 60, minY: -30, maxY: 30 };
+    expect(clampCamera({ x: 100, y: -100, z: 1 }, bounds, 4, 140)).toEqual({ x: 60, y: -30, z: 4 });
+    expect(clampCamera({ x: 0, y: 0, z: 200 }, bounds, 4, 140)).toEqual({ x: 0, y: 0, z: 140 });
   });
 });
 

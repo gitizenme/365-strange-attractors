@@ -6,10 +6,10 @@ export function stepInertia(v: { x: number; y: number }, dt: number, damping = 4
   return Math.hypot(out.x, out.y) < 0.01 ? { x: 0, y: 0 } : out;
 }
 
-export function clampCamera(p: { x: number; y: number; z: number }, bounds: number, zMin: number, zMax: number) {
+export function clampCamera(p: { x: number; y: number; z: number }, bounds: Bounds, zMin: number, zMax: number) {
   return {
-    x: Math.min(bounds, Math.max(-bounds, p.x)),
-    y: Math.min(bounds, Math.max(-bounds, p.y)),
+    x: Math.min(bounds.maxX, Math.max(bounds.minX, p.x)),
+    y: Math.min(bounds.maxY, Math.max(bounds.minY, p.y)),
     z: Math.min(zMax, Math.max(zMin, p.z)),
   };
 }
@@ -59,9 +59,10 @@ export class Controls {
   private reduced: boolean;
   private ac = new AbortController();
   private enabled = true;
+  private userMoved = false;
 
   constructor(private canvas: HTMLCanvasElement, private camera: THREE.PerspectiveCamera,
-              opts: { reducedMotion?: boolean } = {}) {
+              private bounds: Bounds, opts: { reducedMotion?: boolean } = {}) {
     this.reduced = opts.reducedMotion ?? false;
     const s = this.ac.signal;
     canvas.addEventListener('pointerdown', e => {
@@ -73,6 +74,7 @@ export class Controls {
     canvas.addEventListener('pointermove', e => {
       if (!this.enabled) return;
       if (!this.dragging || this.flying) return;
+      this.userMoved = true;
       const wpp = worldPerPixel(this.camera, canvas.clientHeight);
       const dx = (e.clientX - this.last.x), dy = (e.clientY - this.last.y);
       this.moved += Math.hypot(dx, dy);
@@ -91,14 +93,22 @@ export class Controls {
       if (!this.enabled) return;
       e.preventDefault();
       if (this.flying) return;
+      this.userMoved = true;
       const factor = Math.exp(e.deltaY * 0.0015);
       const t = this.screenToWorld(e.clientX, e.clientY);
       const p = zoomToward(this.camera.position, t, factor);
-      Object.assign(this.camera.position, clampCamera(p, 60, 4, 140));
+      Object.assign(this.camera.position, clampCamera(p, this.bounds, 4, this.fitZ() * 1.1));
     }, { signal: s, passive: false });
   }
 
   setEnabled(enabled: boolean): void { this.enabled = enabled; }
+
+  hasUserMoved(): boolean { return this.userMoved; }
+
+  private fitZ(): number {
+    const aspect = this.canvas.clientWidth / this.canvas.clientHeight;
+    return fitCamera(this.bounds, aspect, this.camera.fov, 0.85).z;
+  }
 
   screenToWorld(sx: number, sy: number): { x: number; y: number } {
     const wpp = worldPerPixel(this.camera, this.canvas.clientHeight);
@@ -108,7 +118,7 @@ export class Controls {
     };
   }
 
-  private clamp() { Object.assign(this.camera.position, clampCamera(this.camera.position, 60, 4, 140)); }
+  private clamp() { Object.assign(this.camera.position, clampCamera(this.camera.position, this.bounds, 4, this.fitZ() * 1.1)); }
 
   update(dt: number): void {
     if (this.dragging || this.flying || this.reduced) return;
