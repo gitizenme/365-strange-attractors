@@ -2,7 +2,7 @@ export interface Artwork {
   day: number; title: string; slug: string;
   palette: string[]; brightness: number; x: number; y: number;
 }
-export interface Atlas { tile: number; cols: number; rows: number; index: Record<string, number> }
+export interface Atlas { tile: number; cols: number; rows: number; index: Record<string, number>; files: { small: string; full: string } }
 
 export interface Attractor {
   day: number; slug: string; system: string; params?: number[]; iterations?: number;

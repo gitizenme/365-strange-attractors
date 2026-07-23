@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { atlasUv } from '../src/constellation';
 
-const atlas = { tile: 128, cols: 20, rows: 19, index: { '001-rose': 0, '002-x': 21 } };
+const atlas = { tile: 128, cols: 20, rows: 19, index: { '001-rose': 0, '002-x': 21 }, files: { small: '/images/atlas-32.webp', full: '/images/atlas-128.webp' } };
 
 describe('atlasUv', () => {
   it('computes tile origin and span in flipY texture coords', () => {

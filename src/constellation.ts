@@ -71,12 +71,27 @@ export class Constellation {
     geo.setAttribute('aScale', this.scaleAttr);
     geo.instanceCount = n;
 
-    const tex = new THREE.TextureLoader().load('/images/atlas.png');
-    tex.colorSpace = THREE.SRGBColorSpace;
+    const smallTex = new THREE.TextureLoader().load(atlas.files.small);
+    smallTex.colorSpace = THREE.SRGBColorSpace;
     this.material = new THREE.ShaderMaterial({
       vertexShader: VERT, fragmentShader: FRAG,
-      uniforms: { uAtlas: { value: tex }, uTime: { value: 0 }, uDrift: { value: 1 }, uMix: { value: 0 }, uSize: { value: 1.6 } },
+      uniforms: { uAtlas: { value: smallTex }, uTime: { value: 0 }, uDrift: { value: 1 }, uMix: { value: 0 }, uSize: { value: 1.6 } },
     });
+    // Full-resolution tile atlas loads in the background and swaps in on arrival (single-frame
+    // texture-uniform swap, no geometry/shader change) -- the preview tier above is already
+    // visible by then, so this reads as a seamless upgrade, not a pop-in. Disposing the old
+    // (small) texture frees its GPU memory once nothing references it any more.
+    new THREE.TextureLoader().load(
+      atlas.files.full,
+      fullTex => {
+        fullTex.colorSpace = THREE.SRGBColorSpace;
+        const old = this.material.uniforms.uAtlas.value as THREE.Texture;
+        this.material.uniforms.uAtlas.value = fullTex;
+        old.dispose();
+      },
+      undefined,
+      err => console.warn('full-resolution atlas failed to load, staying on the preview tier', err),
+    );
     const mesh = new THREE.Mesh(geo, this.material);
     mesh.frustumCulled = false;
     this.scene.add(mesh);
