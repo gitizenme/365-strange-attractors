@@ -14,6 +14,26 @@ export function clampCamera(p: { x: number; y: number; z: number }, bounds: numb
   };
 }
 
+export interface Bounds { minX: number; maxX: number; minY: number; maxY: number }
+
+// Centers the camera on `bounds` and picks a distance (z) so the box fills `fill` of whichever
+// screen dimension is more constraining -- the same "letterboxed contain" fit as CSS
+// object-fit:contain, computed from the camera's own vertical FOV the way worldPerPixel already
+// does below. Never clips: the non-limiting dimension ends up with unused space instead.
+export function fitCamera(bounds: Bounds, aspect: number, fovDeg: number, fill = 0.85): { x: number; y: number; z: number } {
+  const bw = Math.max(bounds.maxX - bounds.minX, 1e-6);
+  const bh = Math.max(bounds.maxY - bounds.minY, 1e-6);
+  const tanHalfFov = Math.tan((fovDeg * Math.PI) / 360);
+  const zForHeight = bh / fill / (2 * tanHalfFov);
+  const zForWidth = bw / fill / (2 * tanHalfFov * aspect);
+  const MIN_FIT_Z = 4; // matches Controls' own zMin -- never fit closer than the visitor can zoom
+  return {
+    x: (bounds.minX + bounds.maxX) / 2,
+    y: (bounds.minY + bounds.maxY) / 2,
+    z: Math.max(zForHeight, zForWidth, MIN_FIT_Z),
+  };
+}
+
 export function zoomToward(cam: { x: number; y: number; z: number }, target: { x: number; y: number }, factor: number) {
   return {
     x: target.x + (cam.x - target.x) * factor,

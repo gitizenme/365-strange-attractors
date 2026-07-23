@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { Artwork, Atlas } from './data';
+import type { Bounds } from './controls';
 import { spiralPosition } from './timeview';
 
 export function atlasUv(atlas: Atlas, slug: string) {
@@ -8,6 +9,24 @@ export function atlasUv(atlas: Atlas, slug: string) {
   const row = Math.floor(i / atlas.cols);
   const su = 1 / atlas.cols, sv = 1 / atlas.rows;
   return { u: col * su, v: 1 - (row + 1) * sv, su, sv };
+}
+
+// Union of the UMAP layout (a.x, a.y) and the time-spiral layout (spiralPosition(a.day)),
+// padded ~10% on each axis. Padded so the visitor never sees content flush against the edge, and
+// unioned (not just UMAP) so switching to Time mode never pushes sprites out of frame -- the
+// spiral's radius (up to 50, see spiralPosition) doesn't always agree with the UMAP layout's own
+// extent.
+export function computeCloudBounds(artworks: { day: number; x: number; y: number }[]): Bounds {
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  for (const a of artworks) {
+    const s = spiralPosition(a.day);
+    for (const p of [{ x: a.x, y: a.y }, s]) {
+      minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x);
+      minY = Math.min(minY, p.y); maxY = Math.max(maxY, p.y);
+    }
+  }
+  const padX = (maxX - minX) * 0.1, padY = (maxY - minY) * 0.1;
+  return { minX: minX - padX, maxX: maxX + padX, minY: minY - padY, maxY: maxY + padY };
 }
 
 const VERT = /* glsl */ `
