@@ -118,10 +118,11 @@ async function boot() {
   syncHideImageLabel();
   hideImageBtn.addEventListener('click', () => { piece.toggleHideStatic(); syncHideImageLabel(); });
 
-  const index = new IndexView(overlay, artworks, slug => {
-    index.close();
-    router.go({ kind: 'day', slug });
-  });
+  // Neither view's DOM is built here any more -- IndexView's ~198 index-thumbnail requests and
+  // MusicView's ~45 Apple Music CDN requests (~11.7 MB combined) only fire once a visitor actually
+  // opens Index or Music, not on every boot. Both start as null/undefined and are constructed lazily
+  // by the router below, on first route hit.
+  let index: IndexView | null = null;
   const indexBtn = document.createElement('button');
   indexBtn.id = 'index-toggle';
   indexBtn.textContent = 'Index';
@@ -129,45 +130,50 @@ async function boot() {
   overlay.appendChild(indexBtn);
   indexBtn.addEventListener('click', () => router.go({ kind: 'index' }));
   addEventListener('keydown', e => {
-    if (e.key === '/' && !piece.isOpen() && !index.isOpen() && !music?.isOpen()) { e.preventDefault(); router.go({ kind: 'index' }); }
-    if (e.key === 'Escape' && index.isOpen()) router.go({ kind: 'home' });
+    if (e.key === '/' && !piece.isOpen() && !index?.isOpen() && !music?.isOpen()) { e.preventDefault(); router.go({ kind: 'index' }); }
+    if (e.key === 'Escape' && index?.isOpen()) router.go({ kind: 'home' });
   });
 
-  // null when /data/music.json failed to load/parse (see the Promise.all above) -- in that case,
-  // skip building MusicView and its nav button entirely rather than showing a button that opens
-  // nothing, matching spec §6's "shows nothing rather than crashing the rest of the app".
-  //
-  // The load succeeding (musicData truthy) doesn't guarantee its SHAPE is right, though -- e.g. a
-  // music.json missing `artist` would let MusicView's constructor run and throw synchronously the
-  // first time it dereferences a missing field. That throw would happen before `const router = new
-  // Router(...)` and `requestAnimationFrame(loop)` below, aborting the rest of boot(): no router, no
-  // click handling, no animation loop, the whole page frozen non-interactive -- the same failure
-  // class as the load-failure case above (MusicView's data problem taking down the entire site), just
-  // a different trigger. Wrap construction in try/catch, mirroring the `new Constellation(...)`
-  // try/catch a few lines up, so any throw here also just disables the Music section.
-  let music: MusicView | null = null;
+  // undefined = not yet attempted; null = attempted and failed (disables the section for the rest
+  // of the session, same as before); a MusicView instance = succeeded. null from the start when
+  // /data/music.json itself failed to load/parse (see the Promise.all above) -- matches spec §6's
+  // "shows nothing rather than crashing the rest of the app" by skipping construction entirely
+  // rather than showing a button that opens nothing.
+  let music: MusicView | null | undefined = musicData ? undefined : null;
+  const musicBtn = document.createElement('button');
+  musicBtn.id = 'music-toggle';
+  musicBtn.textContent = 'Music';
+  musicBtn.title = 'Chaos of Zen discography';
   if (musicData) {
-    try {
-      music = new MusicView(overlay, musicData, () => router.go({ kind: 'home' }));
-      const musicBtn = document.createElement('button');
-      musicBtn.id = 'music-toggle';
-      musicBtn.textContent = 'Music';
-      musicBtn.title = 'Chaos of Zen discography';
-      overlay.appendChild(musicBtn);
-      musicBtn.addEventListener('click', () => router.go({ kind: 'music' }));
-    } catch (err) {
-      console.error('MusicView failed to construct, disabling Music section', err);
-      music = null;
-    }
+    overlay.appendChild(musicBtn);
+    musicBtn.addEventListener('click', () => router.go({ kind: 'music' }));
   }
 
   const router = new Router(async r => {
-    // music?. -- music is null when musicData failed to load (see above); a deep link to /music/
-    // in that case should also just show nothing rather than throw.
-    if (r.kind === 'music') { piece.close(); index.close(); music?.open(); return; }
+    if (r.kind === 'music') {
+      piece.close(); index?.close();
+      // First hit only (music === undefined): build the view now. A throw here disables the
+      // section for the rest of the session (music = null) -- mirroring the try/catch that used
+      // to guard eager construction at boot, just deferred to this later trigger. musicData is
+      // guaranteed non-null here since music only starts `undefined` (not `null`) when it was.
+      if (music === undefined) {
+        try {
+          music = new MusicView(overlay, musicData!, () => router.go({ kind: 'home' }));
+        } catch (err) {
+          console.error('MusicView failed to construct, disabling Music section', err);
+          music = null;
+        }
+      }
+      music?.open();
+      return;
+    }
     music?.close();
-    if (r.kind === 'index') { piece.close(); index.open(); return; }
-    index.close();
+    if (r.kind === 'index') {
+      piece.close();
+      (index ??= new IndexView(overlay, artworks, slug => { index!.close(); router.go({ kind: 'day', slug }); })).open();
+      return;
+    }
+    index?.close();
     if (r.kind === 'day' && bySlug.has(r.slug)) {
       const i = bySlug.get(r.slug)!;
       const p = con.positionOf(i);
@@ -199,7 +205,7 @@ async function boot() {
       con.renderer.render(liveScene, con.camera);
       con.renderer.autoClear = true;
     }
-    if (!piece.isOpen() && !index.isOpen() && !music?.isOpen()) {
+    if (!piece.isOpen() && !index?.isOpen() && !music?.isOpen()) {
       labels.update(con.camera, canvas, i => con.positionOf(i));
       minimap.update(con.camera, canvas, i => con.positionOf(i));
     } else {
