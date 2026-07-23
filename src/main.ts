@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { loadData, loadAttractors } from './data';
-import { Constellation } from './constellation';
-import { Controls } from './controls';
+import { Constellation, computeCloudBounds } from './constellation';
+import { Controls, fitCamera } from './controls';
 import { nearestSprite } from './picking';
 import { Labels } from './labels';
 import { Router } from './router';
@@ -21,6 +21,7 @@ async function boot() {
   // whether /data/music.json 404s, fails to parse, or the network hiccups.
   const [{ artworks, atlas }, attractors, musicData] = await Promise.all([loadData(), loadAttractors(), loadMusicData().catch(() => null)]);
   const canvas = document.getElementById('gl') as HTMLCanvasElement;
+  const bounds = computeCloudBounds(artworks);
   let con: Constellation;
   try {
     con = new Constellation(canvas, artworks, atlas);
@@ -31,8 +32,19 @@ async function boot() {
   document.querySelector('.static-piece')?.remove();
   const reduced = matchMedia('(prefers-reduced-motion: reduce)');
   con.setReducedMotion(reduced.matches);
-  addEventListener('resize', () => con.resize());
-  const controls = new Controls(canvas, con.camera, { reducedMotion: reduced.matches });
+  const controls = new Controls(canvas, con.camera, bounds, { reducedMotion: reduced.matches });
+  // Fits the whole cloud (UMAP layout union time-spiral layout, padded -- see computeCloudBounds)
+  // centered in frame at ~85% of the limiting viewport dimension, replacing the old fixed
+  // (0,0,120) camera start. Re-applied on resize/rotate (viewport aspect changed) but only until
+  // the visitor's first pan/zoom -- Controls.hasUserMoved() flips permanently on the first drag
+  // or wheel event, after which their own framing choice is never overridden from under them.
+  const applyFraming = () => {
+    const aspect = canvas.clientWidth / canvas.clientHeight;
+    const fit = fitCamera(bounds, aspect, con.camera.fov, 0.85);
+    con.camera.position.set(fit.x, fit.y, fit.z);
+  };
+  applyFraming();
+  addEventListener('resize', () => { con.resize(); if (!controls.hasUserMoved()) applyFraming(); });
   reduced.addEventListener('change', () => con.setReducedMotion(reduced.matches));
 
   const overlay = document.getElementById('overlay')!;
