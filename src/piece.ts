@@ -423,11 +423,11 @@ export class PieceView {
     // style.css's comments on .piece/.piece-backdrop/.piece-close): an element with opacity < 1
     // creates its own stacking context that traps its descendants' z-index values, so while
     // .piece-backdrop was still .piece itself and had `transition: opacity`, .piece-close's
-    // z-index (needed to beat #time-toggle, which sits in nearly the same corner) was briefly
-    // trapped and ineffective during every fade-in, letting #time-toggle steal the click. Moving
-    // the fading backdrop to a sibling wrapper and giving .piece-close its own independent opacity
-    // transition (style.css) means .piece-close is never a descendant of anything that's
-    // opacity-animating, so its z-index always compares directly against #time-toggle's.
+    // z-index (needed to beat the piece view's own backdrop) was briefly trapped and ineffective
+    // during every fade-in, letting the backdrop steal the click. Moving the fading backdrop to a
+    // sibling wrapper and giving .piece-close its own independent opacity transition (style.css)
+    // means .piece-close is never a descendant of anything that's opacity-animating, so its
+    // z-index always compares directly against the backdrop's.
     this.root.innerHTML = `
       <div class="piece-backdrop">
         <button class="piece-nav prev" aria-label="Previous day" title="Previous day">‹</button>
@@ -717,11 +717,11 @@ export class PieceView {
   // actually has a live cloud showing. A day can be static-only, degenerate (see
   // KNOWN_DEGENERATE_DAYS above), or mid-construction-failure even when this is true, so callers
   // that need "is a live attractor showing right now" should check `this.liveAttractor` (e.g. the
-  // hide-image button's visibility below), not this accessor.
+  // Image|Orbit mode toggle's visibility below), not this accessor.
   hasLiveSupport(): boolean { return this.tier !== null; }
 
-  // Returns the new state so callers (main.ts's hide-image button) can update their own label to
-  // reflect it rather than showing the same text regardless of which action clicking will perform.
+  // Returns the new state so callers (main.ts's Image|Orbit mode toggle) can update their own label
+  // to reflect it rather than showing the same text regardless of which action clicking will perform.
   toggleHideStatic(): boolean { return this.root.classList.toggle('hide-static'); }
 
   // Hide-static persists across day navigation and close/reopen (neither open() nor close() resets

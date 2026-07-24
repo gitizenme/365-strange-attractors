@@ -53,7 +53,7 @@ async function boot() {
     // Retry on the next frame until layout exists, and re-run con.resize() then so the
     // renderer size and camera aspect (set from the same 0x0 measurement in the
     // constructor) heal together.
-    if (!w || !h) { requestAnimationFrame(applyFraming); return; }
+    if (!w || !h) { if (!controls.hasUserMoved()) requestAnimationFrame(applyFraming); return; }
     con.resize();
     const fit = fitCamera(computeCloudBounds(artworks, timeMode ? 'date' : 'likeness'), w / h, con.camera.fov, 0.85);
     con.camera.position.set(fit.x, fit.y, fit.z);
@@ -265,6 +265,10 @@ async function boot() {
     const p = con.positionOf(todayIndex);
     const s = settleCamera(p, con.camera.fov);
     await controls.flyTo(s.x, s.y, s.z, 2.5, { cancellable: true });
+    // flyTo's promise also resolves on cancellation/supersession — re-check that the visitor
+    // hasn't taken over (drag/wheel mid-settle) and we're still home before revealing the
+    // caption, otherwise it fades in over wherever they panned ("the visitor always wins").
+    if (controls.hasUserMoved() || router.current().kind !== 'home') return;
     captionEl.classList.add('visible');
   };
   if (router.current().kind === 'home') arrive();

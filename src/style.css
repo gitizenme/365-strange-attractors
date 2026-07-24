@@ -58,13 +58,9 @@ html, body { height: 100%; background: #06070a; color: #cfd3dc; font-family: Geo
   background: none; border: none; color: #9aa1b0; font-size: 40px; cursor: pointer; padding: 12px;
 }
 .piece-nav:hover, .piece-close:hover { color: #fff; }
-/* top:64px sits below the toggle row (#time-toggle/#index-toggle/#music-toggle end around
-   y=45px), not on top of it -- earlier this shared #time-toggle's exact corner and visually
-   merged into a "Time[x]" look even though both stayed independently clickable. z-index:2 is a
-   second line of defense, not the thing doing the separating: must still beat #time-toggle's
-   z-index:1 (see below) in case any future layout change reintroduces overlap, since a same-level
-   positioned sibling with a lower z-index would otherwise lose the overlap and become
-   unclickable/invisible while a piece is open.
+/* z-index:2 keeps .piece-close above .piece-backdrop (and anything else painted within this
+   view) now that nav lives in the word-row rather than a corner toggle pill -- the close control
+   just needs to stay on top of its own view's backdrop, not fend off any particular sibling.
    opacity/transition: its own independent fade, matching .piece-backdrop's timing (see above) so
    the close button and the dimmed backdrop visually fade in/out together, without .piece-close
    ever being a descendant of the thing whose opacity is animating. */
