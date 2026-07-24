@@ -1,6 +1,7 @@
 export interface Artwork {
   day: number; title: string; slug: string;
   palette: string[]; brightness: number; x: number; y: number;
+  audio?: string; // per-day sonified composition URL; absent everywhere until audio ships
 }
 export interface Atlas { tile: number; cols: number; rows: number; index: Record<string, number>; files: { small: string; full: string } }
 

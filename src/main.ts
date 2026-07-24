@@ -121,10 +121,27 @@ async function boot() {
     canvas.style.cursor = hovered !== null ? 'pointer' : 'grab';
   });
 
-  const hideImageBtn = document.createElement('button');
-  hideImageBtn.id = 'hide-image-toggle';
-  hideImageBtn.textContent = 'Hide Image';
-  hideImageBtn.title = 'Hide the static image and show only the live attractor';
+  // Image | Orbit: the two modes of viewing a piece — the 2010 static render, or the live
+  // re-simulated attractor cloud. Lit word = current mode. Shown only while a live-capable
+  // piece is open (piece.open()/close() own its display).
+  const modeToggle = document.createElement('div');
+  modeToggle.id = 'mode-toggle';
+  const imageBtn = document.createElement('button');
+  imageBtn.textContent = 'Image';
+  imageBtn.title = 'Show the 2010 static render';
+  const orbitBtn = document.createElement('button');
+  orbitBtn.textContent = 'Orbit';
+  orbitBtn.title = 'Show only the live attractor';
+  modeToggle.append(imageBtn, orbitBtn);
+  const syncModeToggle = () => {
+    const orbit = piece.isHidingStatic();
+    imageBtn.classList.toggle('active', !orbit);
+    orbitBtn.classList.toggle('active', orbit);
+    imageBtn.setAttribute('aria-pressed', String(!orbit));
+    orbitBtn.setAttribute('aria-pressed', String(orbit));
+  };
+  imageBtn.addEventListener('click', () => { if (piece.isHidingStatic()) { piece.toggleHideStatic(); syncModeToggle(); } });
+  orbitBtn.addEventListener('click', () => { if (!piece.isHidingStatic()) { piece.toggleHideStatic(); syncModeToggle(); } });
 
   const brightnessSlider = document.createElement('input');
   brightnessSlider.id = 'brightness-slider';
@@ -141,21 +158,11 @@ async function boot() {
     artworks,
     slug => router.go({ kind: 'day', slug }),
     () => router.go({ kind: 'home' }),
-    { attractors, renderer: con.renderer, liveScene, camera: con.camera, canvas, controls, hideImageBtn, brightnessSlider });
+    { attractors, renderer: con.renderer, liveScene, camera: con.camera, canvas, controls, modeToggle, brightnessSlider });
   // appended after piece.root so it paints on top of the piece backdrop while open (same pattern as indexBtn)
-  overlay.appendChild(hideImageBtn);
+  overlay.appendChild(modeToggle);
   overlay.appendChild(brightnessSlider);
-  // Reflects which action clicking will perform next, not just the button's own name -- otherwise
-  // the label reads "Hide Image" even after the image is already hidden, with nothing on screen
-  // indicating that clicking again would bring it back.
-  const syncHideImageLabel = () => {
-    const hiding = piece.isHidingStatic();
-    hideImageBtn.textContent = hiding ? 'Show Image' : 'Hide Image';
-    hideImageBtn.title = hiding ? 'Show the static image again' : 'Hide the static image and show only the live attractor';
-    hideImageBtn.setAttribute('aria-pressed', String(hiding));
-  };
-  syncHideImageLabel();
-  hideImageBtn.addEventListener('click', () => { piece.toggleHideStatic(); syncHideImageLabel(); });
+  syncModeToggle();
 
   // Neither view's DOM is built here any more -- IndexView's ~198 index-thumbnail requests and
   // MusicView's ~45 Apple Music CDN requests (~11.7 MB combined) only fire once a visitor actually
@@ -226,7 +233,7 @@ async function boot() {
       const p = con.positionOf(i);
       await controls.flyTo(p.x, p.y, 8, 0.9);
       piece.open(r.slug);
-      syncHideImageLabel();
+      syncModeToggle();
     } else {
       piece.close();
     }
