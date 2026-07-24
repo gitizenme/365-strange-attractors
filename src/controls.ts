@@ -148,10 +148,17 @@ export class Controls {
       const step = () => {
         if (this.flightId !== id) { resolve(); return; } // cancelled (or superseded) mid-flight
         const t = durationSec === 0 ? 1 : Math.min(1, (performance.now() - t0) / (durationSec * 1000));
-        const k = ease(t);
-        this.camera.position.set(from.x + (x - from.x) * k, from.y + (y - from.y) * k, from.z + (z - from.z) * k);
-        if (t < 1) requestAnimationFrame(step);
-        else { this.flying = false; this.cancellableFlight = false; resolve(); }
+        if (t < 1) {
+          const k = ease(t);
+          this.camera.position.set(from.x + (x - from.x) * k, from.y + (y - from.y) * k, from.z + (z - from.z) * k);
+          requestAnimationFrame(step);
+        } else {
+          // Land EXACTLY on the target, never on the lerp's final sample: `from + (to - from) * 1`
+          // re-derives the target THROUGH `from`, so a non-finite starting position (e.g. a camera
+          // poisoned by a pre-layout NaN aspect) would otherwise survive the whole flight.
+          this.camera.position.set(x, y, z);
+          this.flying = false; this.cancellableFlight = false; resolve();
+        }
       };
       step();
     });

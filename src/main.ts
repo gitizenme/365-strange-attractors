@@ -45,8 +45,17 @@ async function boot() {
   // or wheel event, after which their own framing choice is never overridden from under them.
   let timeMode = false;
   const applyFraming = () => {
-    const aspect = canvas.clientWidth / canvas.clientHeight;
-    const fit = fitCamera(computeCloudBounds(artworks, timeMode ? 'date' : 'likeness'), aspect, con.camera.fov, 0.85);
+    const w = canvas.clientWidth, h = canvas.clientHeight;
+    // A canvas that hasn't been laid out yet measures 0x0 — dividing gives an aspect of
+    // NaN, which fitCamera propagates into camera z, and a NaN camera never recovers on
+    // its own (the resize listener only fires on real resize events). Seen in embedded/
+    // pre-rendered contexts where boot's data fetches win the race against first layout.
+    // Retry on the next frame until layout exists, and re-run con.resize() then so the
+    // renderer size and camera aspect (set from the same 0x0 measurement in the
+    // constructor) heal together.
+    if (!w || !h) { requestAnimationFrame(applyFraming); return; }
+    con.resize();
+    const fit = fitCamera(computeCloudBounds(artworks, timeMode ? 'date' : 'likeness'), w / h, con.camera.fov, 0.85);
     con.camera.position.set(fit.x, fit.y, fit.z);
   };
   applyFraming();
