@@ -361,6 +361,22 @@ export function estimateIconDisplay(params: number[]): { scale: number; centerX:
   return sampleSettledTrajectory(step, s, 500, 4000);
 }
 
+// Unravel: mirrors unravel.ts's glslStep (see its header for the formula and the radial fold).
+export function estimateUnravelDisplay(params: number[]): { scale: number; centerX: number; centerY: number; centerZ: number; seed: SeedSpec } {
+  const [a, e, u, L, N, V, r] = params;
+  const s = { x: 0.1, y: 0.1, z: 0.1 };
+  const step = () => {
+    let nx = L * (s.z + a), ny = N * (s.x + e), nz = V * (s.y + u);
+    const m = Math.hypot(nx, ny, nz);
+    if (m > r && r > 0) {
+      const p = 1 - (r * (Math.floor(m / r) + 1)) / m;
+      nx *= p; ny *= p; nz *= p;
+    }
+    s.x = nx; s.y = ny; s.z = nz;
+  };
+  return sampleSettledTrajectory(step, s, 500, 4000);
+}
+
 // One entry point for "how should this family's live cloud be scaled/positioned/seeded," instead
 // of open() re-deriving it via a chain of `attractor.system === X ? estimateX(...) : null` calls
 // followed by two parallel scale/centerZ ternaries walking the same chain again (the shape that
@@ -397,6 +413,7 @@ const DISPLAY_ESTIMATORS: Record<string, (params: number[]) => DisplayResult> = 
   polynomial_b: estimatePolynomialBDisplay,
   ifs: estimateIfsDisplay,
   icon: estimateIconDisplay,
+  unravel: estimateUnravelDisplay,
   // Every other in-scope family falls through to open()'s { scale: 1, centerZ: 0, seed: undefined }
   // default.
 };

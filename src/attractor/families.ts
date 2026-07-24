@@ -10,6 +10,7 @@ import { POLYNOMIAL_FUNC } from './families/polynomialFunc';
 import { POLYNOMIAL_SPROTT } from './families/polynomialSprott';
 import { IFS } from './families/ifs';
 import { ICON } from './families/icon';
+import { UNRAVEL } from './families/unravel';
 
 export const FAMILIES: Record<string, AttractorFamily> = {
   lorenz: LORENZ,
@@ -23,6 +24,7 @@ export const FAMILIES: Record<string, AttractorFamily> = {
   polynomial_sprott: POLYNOMIAL_SPROTT,
   ifs: IFS,
   icon: ICON,
+  unravel: UNRAVEL,
 };
 
 export function getFamily(system: string): AttractorFamily | null {

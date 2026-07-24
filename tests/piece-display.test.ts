@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { estimateChaoticFlowDisplay, estimateLorenz84Display, estimateIfsDisplay, estimateIconDisplay } from '../src/piece';
+import { estimateChaoticFlowDisplay, estimateLorenz84Display, estimateIfsDisplay, estimateIconDisplay, estimateUnravelDisplay } from '../src/piece';
 
 // day 002-event-horizon's real params (lorenz_84: a, b, F, G, dt)
 const LORENZ84_PARAMS = [4.41558441558442, 1.401, 1.798, 1.997, 0.299];
@@ -89,4 +89,11 @@ describe('estimateIconDisplay', () => {
     // z channel is |p| ≥ 0 for every seed point
     for (let i = 2; i < d.seed.points.length; i += 3) expect(d.seed.points[i]).toBeGreaterThanOrEqual(0);
   });
+});
+
+it('estimateUnravelDisplay: day 017 params stay bounded through the fold', () => {
+  const d = estimateUnravelDisplay([0.403, -0.821, 0.855, -1.908, -1.53, 1.477, 1.869]);
+  expect(Number.isFinite(d.scale)).toBe(true);
+  expect(d.scale).toBeGreaterThan(0);
+  expect(d.seed.points.length).toBeGreaterThan(300);
 });
