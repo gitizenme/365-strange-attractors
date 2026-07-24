@@ -39,6 +39,17 @@ describe('transitionKind', () => {
     )).toBe('dissolve');
   });
 
+  it('morphs same-Level julia days, dissolves across Levels', () => {
+    expect(transitionKind(
+      { day: 10, system: 'julia', params: [3, 0.1, 0.1, 0] },
+      { day: 11, system: 'julia', params: [3, 0.2, 0.2, 0] },
+    )).toBe('morph');
+    expect(transitionKind(
+      { day: 10, system: 'julia', params: [3, 0.1, 0.1, 0] },
+      { day: 11, system: 'julia', params: [10, 0.1, 0.1, 0] },
+    )).toBe('dissolve');
+  });
+
   it('existing behavior unchanged when params are absent', () => {
     expect(transitionKind({ day: 1, system: 'lorenz' }, { day: 2, system: 'lorenz' })).toBe('morph');
     expect(transitionKind({ day: 1, system: 'static-only' }, { day: 2, system: 'lorenz' })).toBe('dissolve');

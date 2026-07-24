@@ -72,7 +72,7 @@ export function computeShader(family: AttractorFamily, paramCount: number): stri
     uniform float uFrame;
     vec2 cgUv;
     float cgRand(vec2 uv, float n) {
-      return fract(sin(dot(vec3(uv, n), vec3(12.9898, 78.233, 37.719))) * 43758.5453);
+      return fract(sin(dot(vec3(uv, mod(n, 1024.0)), vec3(12.9898, 78.233, 37.719))) * 43758.5453);
     }
     ${step}
     void main() {

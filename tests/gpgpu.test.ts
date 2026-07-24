@@ -86,6 +86,10 @@ describe('computeShader scaffold (phase 2b)', () => {
     expect(src).toContain('float cgRand(');
     expect(src).toContain('cgUv = uv;');
   });
+  it('wraps the frame count inside cgRand so large uFrame values cannot swamp the uv term', () => {
+    const src = computeShader(fixed, 4);
+    expect(src).toContain('mod(n, 1024.0)');
+  });
   it('sizes uniform arrays from the passed count and substitutes __N__', () => {
     const variable: AttractorFamily = {
       system: 'v', paramCount: 'variable', isDiscreteMap: true,

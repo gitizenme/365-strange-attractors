@@ -85,11 +85,13 @@ export function transitionKind(
   if (current.system === 'static-only' || next.system === 'static-only') return 'dissolve';
   if (current.system !== next.system) return 'dissolve';
   // param-interpolation morphs need structurally compatible param lists: same length always
-  // (ifs matrix counts differ across days), and for icon the same integer degree (the degree
-  // drives a complex-power loop — a fractional mix of 3 and 5 is meaningless).
+  // (ifs matrix counts differ across days), and for icon/julia the same integer degree/Level
+  // (degree/Level are structural integers driving the map's order — a fractional mix of 3 and 5
+  // is meaningless).
   if (current.params && next.params) {
     if (current.params.length !== next.params.length) return 'dissolve';
     if (current.system === 'icon' && current.params[0] !== next.params[0]) return 'dissolve';
+    if (current.system === 'julia' && current.params[0] !== next.params[0]) return 'dissolve';
   }
   return 'morph';
 }
@@ -705,8 +707,8 @@ export class PieceView {
     if (family && attractor?.params && this.tier && !KNOWN_DEGENERATE_DAYS.has(a.day)) {
       try {
         // See DISPLAY_ESTIMATORS above (and each estimate*Display function it wraps) for why each
-        // family's scale/centerZ/seed is what it is. Families with no entry (currently none — all
-        // 7 live families here have one) fall back to an unscaled, uncentered, unseeded default.
+        // family's scale/centerZ/seed is what it is. Families with no entry (currently only
+        // polynomial_sprott's single day) fall back to an unscaled, uncentered, unseeded default.
         const display = DISPLAY_ESTIMATORS[attractor.system]?.(attractor.params) ?? { scale: 1, centerX: 0, centerY: 0, centerZ: 0 };
         const liveSeed = display.seed && display.seed.points.length >= 3 ? display.seed : undefined;
         // polynomial_func's real archive days have 3 genuinely different underlying parameter-

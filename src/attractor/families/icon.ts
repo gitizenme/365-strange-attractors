@@ -18,7 +18,7 @@ export const ICON: AttractorFamily = {
   disturbIndices: [3, 1], // perturb Lambda, Alpha — shape-defining, small nudges stay recognizable
   glslStep: /* glsl */ `
     vec3 stepAttractor(vec3 p, float params[6]) {
-      int d = int(params[0]);
+      int d = int(params[0] + 0.5);
       float alpha = params[1];
       float beta = params[2];
       float lambda = params[3];
