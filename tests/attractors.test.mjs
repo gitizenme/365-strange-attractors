@@ -47,10 +47,10 @@ const MALFORMED = `attractor {\r
 `;
 
 describe('IN_SCOPE_FAMILIES', () => {
-  it('has exactly the 9 supported family names', () => {
+  it('has the expected family names', () => {
     expect([...IN_SCOPE_FAMILIES].sort()).toEqual([
-      'chaotic_flow', 'lorenz', 'lorenz_84', 'pickover',
-      'polynomial_a', 'polynomial_b', 'polynomial_c', 'polynomial_func', 'polynomial_sprott',
+      'chaotic_flow', 'icon', 'ifs', 'julia', 'lorenz', 'lorenz_84', 'pickover',
+      'polynomial_a', 'polynomial_b', 'polynomial_c', 'polynomial_func', 'polynomial_sprott', 'unravel',
     ].sort());
   });
 });
@@ -110,8 +110,50 @@ describe('buildAttractors', () => {
     const result = buildAttractors(days, '/archive', fakeFs);
     expect(result).toEqual([
       { day: 1, slug: '001-rose', system: 'chaotic_flow', iterations: 80000000, params: CHAOTIC_FLOW_001 && [-0.368, 0, -0.695, 2, 0.305, 0, 0.924, 0.088, 2, -0.569, 0, -0.288, 3, 0.205, -0.234, 1, -0.717, 0, 0.812, 2, 0.928, 0.883] },
-      { day: 2, slug: '002-icon-day', system: 'static-only' },
+      { day: 2, slug: '002-icon-day', system: 'icon', iterations: 1000000, params: [1.5, -1.5] },
       { day: 3, slug: '003-no-csproj', system: 'static-only' },
     ]);
+  });
+});
+
+describe('phase 2b families', () => {
+  it('parses an icon attractor block', () => {
+    const src = `attractor {\n\ttype icon\n\titerations 2000000000\n\tparameters <3, 0.082, 2.688, -1.455,\n\t            0.29, -0.004>\n\texclude <0, 2, 3, 4, 5>\n}`;
+    expect(parseCsproj(src)).toEqual({ type: 'icon', iterations: 2000000000, params: [3, 0.082, 2.688, -1.455, 0.29, -0.004] });
+  });
+  it('parses an ifs block including matrices count and weights', () => {
+    const block = Array.from({ length: 32 }, (_, i) => (i % 16 === 15 ? 0.5 : 0.1)).join(', ');
+    const src = `attractor {\n\ttype ifs\n\tmatrices 2\n\titerations 100000000\n\tparameters <${block}>\n\texclude <15, 31>\n}`;
+    const parsed = parseCsproj(src);
+    expect(parsed.type).toBe('ifs');
+    expect(parsed.matrices).toBe(2);
+    expect(parsed.params).toHaveLength(32);
+    expect(parsed.params[15]).toBe(0.5); // weights are kept, not stripped
+  });
+  it('parses unravel and julia blocks', () => {
+    const unravel = `attractor {\n\ttype unravel\n\titerations 20000000\n\tparameters <0.403, -0.821, 0.855, -1.908,\n\t            -1.53, 1.477, 1.869>\n}`;
+    expect(parseCsproj(unravel).params).toHaveLength(7);
+    const julia = `attractor {\n\ttype julia\n\titerations 20000000\n\tparameters <10, 0.051948, 0.051948, 3.14159265358979>\n}`;
+    expect(parseCsproj(julia).type).toBe('julia');
+  });
+  it('all four new families are in scope', () => {
+    for (const f of ['icon', 'julia', 'ifs', 'unravel']) expect(IN_SCOPE_FAMILIES.has(f)).toBe(true);
+  });
+  it('pickAttractorFile prefers the file matching the slug title', () => {
+    const files = ['011_Monday.csproj', '011_Sphere.csproj'];
+    expect(pickAttractorFile(11, files, '011-sphere')).toBe('011_Sphere.csproj');
+    expect(pickAttractorFile(11, files, '011-monday')).toBe('011_Monday.csproj');
+    // no slug match → existing behavior (first day-prefixed file)
+    expect(pickAttractorFile(11, files, '011-something-else')).toBe('011_Monday.csproj');
+    expect(pickAttractorFile(11, files)).toBe('011_Monday.csproj');
+  });
+  it('buildAttractors emits matrices for ifs days', () => {
+    const block = Array.from({ length: 16 }, () => 0.1).join(', ');
+    const files = { '/root/project/001': ['001_A.csproj'] };
+    const contents = { '/root/project/001/001_A.csproj': `attractor {\n\ttype ifs\n\tmatrices 1\n\titerations 1\n\tparameters <${block}>\n}` };
+    const fsMock = { readdirSync: d => files[d] ?? [], readFileSync: p => contents[p] };
+    const [entry] = buildAttractors([{ day: 1, slug: '001-a' }], '/root', fsMock);
+    expect(entry.system).toBe('ifs');
+    expect(entry.matrices).toBe(1);
   });
 });
