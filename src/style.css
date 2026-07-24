@@ -131,7 +131,8 @@ html, body { height: 100%; background: #06070a; color: #cfd3dc; font-family: Geo
   border: 1px solid #333a48; border-radius: 16px; padding: 0 10px; }
 
 .indexview {
-  position: absolute; inset: 0; overflow-y: auto; background: rgba(4,5,8,0.94);
+  position: absolute; inset: 0; overflow-y: auto; background: rgba(4,5,8,0.78);
+  backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
   padding: 48px min(8vw, 80px); transition: opacity 0.3s;
 }
 #overlay > .indexview.hidden { opacity: 0; pointer-events: none; }
@@ -140,12 +141,12 @@ html, body { height: 100%; background: #06070a; color: #cfd3dc; font-family: Geo
   background: #10141c; color: #cfd3dc; border: 1px solid #333a48; border-radius: 20px;
 }
 .index-results { display: flex; flex-direction: column; gap: 4px; margin: 10px 0; }
-.index-results button, .indexview h2 { color: #cfd3dc; }
-.index-results button { background: none; border: none; text-align: left; font: inherit; cursor: pointer; padding: 4px 8px; }
-.index-results button:hover { background: #1a2030; }
+.index-results a, .indexview h2 { color: #cfd3dc; }
+.index-results a { display: block; text-decoration: none; text-align: left; font: inherit; cursor: pointer; padding: 4px 8px; }
+.index-results a:hover { background: #1a2030; }
 .indexview h2 { margin: 28px 0 10px; font-weight: normal; letter-spacing: 0.12em; font-size: 15px; }
 .month-grid { display: grid; grid-template-columns: repeat(auto-fill, 64px); gap: 6px; }
-.day-cell { position: relative; width: 64px; height: 64px; padding: 0; border: none; cursor: pointer; background: #10141c; }
+.day-cell { position: relative; display: block; width: 64px; height: 64px; padding: 0; border: none; cursor: pointer; background: #10141c; }
 .day-cell img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .day-cell span {
   position: absolute; bottom: 2px; right: 4px; font-size: 10px; color: #fff;
@@ -166,19 +167,17 @@ html, body { height: 100%; background: #06070a; color: #cfd3dc; font-family: Geo
 #overlay > .musicview.hidden { opacity: 0; pointer-events: none; }
 .musicview {
   position: absolute; inset: 0; overflow-y: auto;
-  background: #12141a; color: #cfd3dc;
+  background: rgba(10,12,18,0.8); color: #cfd3dc;
+  backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
   padding: 48px 24px; box-sizing: border-box;
 }
-/* top:64px sits below the toggle row instead of at its exact corner (top:16px;right:16px, where
-   this used to sit directly on top of #time-toggle and read as a merged "Time[x]" look, even
-   though both stayed independently clickable). z-index:2 remains a second line of defense -- must
-   still beat #time-toggle's z-index:1, since as a same-level positioned sibling with a lower
-   z-index it would otherwise lose any future overlap to the always-visible toggle row while Music
-   is open. */
-.music-close {
-  position: fixed; top: 64px; right: 16px; z-index: 2;
-  font-size: 28px; line-height: 1; background: none; border: none; color: #cfd3dc; cursor: pointer;
+.music-close, .story-close {
+  position: fixed; top: 16px; right: 16px; z-index: 2;
+  font-family: inherit; font-size: 14px; letter-spacing: 0.18em;
+  background: none; border: none; color: #9aa1b0; cursor: pointer; padding: 12px;
 }
+.music-close .glyph, .story-close .glyph { font-size: 18px; margin-right: 6px; vertical-align: -1px; }
+.music-close:hover, .story-close:hover { color: #fff; }
 .music-header { max-width: 640px; margin: 0 auto 40px; text-align: center; }
 .music-header h1 { font-weight: normal; letter-spacing: 0.08em; }
 .music-bio { line-height: 1.6; opacity: 0.85; }
@@ -202,3 +201,15 @@ html, body { height: 100%; background: #06070a; color: #cfd3dc; font-family: Geo
 .music-thumb-title { font-size: 12px; }
 .music-thumb-links { display: flex; gap: 6px; }
 .music-thumb-links .music-link-btn { padding: 2px 8px; font-size: 11px; }
+
+#overlay > .storyview.hidden { opacity: 0; pointer-events: none; }
+.storyview {
+  position: absolute; inset: 0; overflow-y: auto;
+  background: rgba(10,12,18,0.8); color: #cfd3dc;
+  backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+  padding: 48px 24px; box-sizing: border-box; transition: opacity 0.3s;
+}
+.story-body { max-width: 640px; margin: 10vh auto 0; text-align: center; }
+.story-body h1 { font-weight: normal; letter-spacing: 0.18em; font-size: clamp(20px, 4vw, 30px); }
+.story-body p { color: #9aa1b0; line-height: 1.7; margin-top: 18px; }
+.story-more { font-style: italic; }

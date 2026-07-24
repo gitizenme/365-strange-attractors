@@ -9,12 +9,16 @@ export class MusicView {
     this.root = document.createElement('div');
     this.root.className = 'musicview hidden';
     this.root.innerHTML = `
-      <button class="music-close" aria-label="Close" title="Close">×</button>
+      <button class="music-close" aria-label="Return to the constellation" title="Return to the constellation"><span class="glyph">×</span> Sky</button>
       <div class="music-header">
         <h1></h1>
         <p class="music-bio"></p>
         <div class="music-artist-links"></div>
       </div>
+      <section class="music-sonification"><h2>Sonification</h2>
+        <p>Every day's attractor is composing its own music — the orbit writes the melody,
+        the image chooses the key. Coming to each day's page.</p>
+      </section>
       <section class="music-albums"><h2>Albums</h2><div class="music-album-grid"></div></section>
       <section class="music-videos"><h2>Music Videos</h2><div class="music-thumb-grid"></div></section>
       <section class="music-singles"><h2>Singles &amp; EPs</h2><div class="music-thumb-grid"></div></section>`;
