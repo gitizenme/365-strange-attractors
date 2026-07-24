@@ -10,18 +10,10 @@ html, body { height: 100%; background: #06070a; color: #cfd3dc; font-family: Geo
   transition: opacity 0.2s;
 }
 
-#time-toggle {
-  position: absolute; top: 16px; right: 16px; background: rgba(20,24,32,0.7);
-  color: #cfd3dc; border: 1px solid #333a48; padding: 6px 14px; border-radius: 16px;
-  font: inherit; font-size: 13px; cursor: pointer;
-}
-#time-toggle[aria-pressed="true"] { background: #cfd3dc; color: #10131a; }
-
 /* .piece itself no longer paints a background or transitions opacity (that moved to
    .piece-backdrop below) -- it's purely the positioning container now, so it never has an
    `opacity` other than 1 and therefore never creates a stacking context that could trap
-   .piece-close's z-index (see the longer explanation above #time-toggle/#index-toggle/
-   #music-toggle's shared z-index rule further down). */
+   .piece-close's z-index. */
 .piece {
   position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
   gap: 12px;
@@ -81,34 +73,6 @@ html, body { height: 100%; background: #06070a; color: #cfd3dc; font-family: Geo
   opacity: 1; transition: opacity 0.35s;
 }
 @media (max-width: 700px) { .piece-nav { position: absolute; bottom: 8px; } .piece-nav.prev { left: 20vw; } .piece-nav.next { right: 20vw; } }
-
-#index-toggle { position: absolute; top: 16px; right: 96px; background: rgba(20,24,32,0.7);
-  color: #cfd3dc; border: 1px solid #333a48; padding: 6px 14px; border-radius: 16px;
-  font: inherit; font-size: 13px; cursor: pointer; }
-
-/* Without an explicit `position`, this button would be a normal-flow ("static") box, and CSS paints
-   static content before any positioned element regardless of DOM order -- so it would render behind
-   .indexview/.musicview/.piece (all position:absolute) and even behind #time-toggle/#index-toggle,
-   invisible and unclickable whenever another overlay is open. Match #index-toggle/#time-toggle's
-   positioning convention (same cluster, one slot further left) so it stays visible and on top,
-   consistent with DOM order, like its siblings. */
-#music-toggle { position: absolute; top: 16px; right: 176px; background: rgba(20,24,32,0.7);
-  color: #cfd3dc; border: 1px solid #333a48; padding: 6px 14px; border-radius: 16px;
-  font: inherit; font-size: 13px; cursor: pointer; }
-
-/* All three nav toggles must stay clickable no matter which full-screen view backdrop (.piece/
-   .indexview/.musicview, all position:absolute with z-index:auto) is currently open on top of them
-   in DOM order -- e.g. #index-toggle is appended before .musicview/#music-toggle, so without this it
-   would be painted (and hit-tested) underneath the music overlay whenever Music is open, making it
-   impossible to click "Index" to switch away from Music. A positive z-index lifts all three above
-   any z-index:auto backdrop regardless of DOM order.
-   This must stay LOWER than each view's own close control (.piece-close, .music-close: z-index 2)
-   -- both now sit below this row (top:64px) rather than on top of it, but z-index is kept as a
-   second line of defense: if they ever overlap again, whichever view is actually open needs its
-   own × to win that overlap, not the always-visible toggle row underneath it. IndexView has no
-   dedicated close button (only Escape/route-away close it), so there's no third collision to
-   resolve there. */
-#time-toggle, #index-toggle, #music-toggle { z-index: 1; }
 
 #hide-image-toggle { position: absolute; bottom: 16px; right: 16px; background: rgba(20,24,32,0.7);
   color: #cfd3dc; border: 1px solid #333a48; padding: 6px 14px; border-radius: 16px;
@@ -213,3 +177,40 @@ html, body { height: 100%; background: #06070a; color: #cfd3dc; font-family: Geo
 .story-body h1 { font-weight: normal; letter-spacing: 0.18em; font-size: clamp(20px, 4vw, 30px); }
 .story-body p { color: #9aa1b0; line-height: 1.7; margin-top: 18px; }
 .story-more { font-style: italic; }
+
+#nav-row {
+  position: absolute; bottom: 18px; left: 50%; transform: translateX(-50%);
+  display: flex; align-items: center; white-space: nowrap;
+  font-size: 14px; letter-spacing: 0.18em; transition: opacity 0.3s;
+}
+#nav-row a { color: #9aa1b0; text-decoration: none; padding: 6px 4px; }
+#nav-row a:hover { color: #fff; text-shadow: 0 0 12px rgba(232,178,106,0.45); }
+#nav-row a.active { color: #e6e9f0; border-bottom: 1px solid #4a5268; }
+#nav-row a + a::before { content: '·'; margin: 0 14px; color: #4a5268; }
+
+#layout-switch {
+  position: absolute; left: 16px; bottom: 168px; display: flex;
+  border: 1px solid #333a48; border-radius: 16px; overflow: hidden;
+  background: rgba(20,24,32,0.7); transition: opacity 0.3s;
+}
+#layout-switch button {
+  background: none; border: none; color: #9aa1b0; font: inherit; font-size: 12px;
+  letter-spacing: 0.1em; padding: 5px 12px; cursor: pointer;
+}
+#layout-switch button.active { background: #cfd3dc; color: #10131a; }
+
+/* The scene's chrome belongs to the scene — gone while any veil or piece is open. */
+#overlay.view-open #nav-row, #overlay.view-open #minimap,
+#overlay.view-open #layout-switch, #overlay.view-open #today-caption {
+  opacity: 0; pointer-events: none;
+}
+
+/* crawler-only fallback nav; removed at boot, styled minimally in case JS never runs */
+.static-nav { position: absolute; bottom: 18px; left: 50%; transform: translateX(-50%); display: flex; gap: 20px; }
+.static-nav a { color: #9aa1b0; }
+
+@media (max-width: 700px) {
+  #nav-row { font-size: 12px; bottom: 14px; }
+  #nav-row a + a::before { margin: 0 8px; }
+  #layout-switch { bottom: 64px; } /* minimap is hidden on mobile; sit above the word-row */
+}

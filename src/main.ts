@@ -10,6 +10,9 @@ import { IndexView } from './indexview';
 import { Minimap } from './minimap';
 import { MusicView } from './musicview';
 import { loadMusicData } from './musicdata';
+import { StoryView } from './storyview';
+import { Nav } from './nav';
+import { resolveToday } from './today';
 
 async function boot() {
   // music.json is a supplementary, link-out showcase, unlike artworks/atlas/attractors (which the
@@ -30,6 +33,7 @@ async function boot() {
     return; // .static-piece (if present) stays visible; no interactive UI is built
   }
   document.querySelector('.static-piece')?.remove();
+  document.querySelector('.static-nav')?.remove(); // replaced by the live word-row below
   const reduced = matchMedia('(prefers-reduced-motion: reduce)');
   con.setReducedMotion(reduced.matches);
   const controls = new Controls(canvas, con.camera, bounds, { reducedMotion: reduced.matches });
@@ -50,20 +54,32 @@ async function boot() {
   reduced.addEventListener('change', () => con.setReducedMotion(reduced.matches));
 
   const overlay = document.getElementById('overlay')!;
-  const timeBtn = document.createElement('button');
-  timeBtn.id = 'time-toggle';
-  timeBtn.textContent = 'Time';
-  timeBtn.title = 'Arrange by date instead of visual similarity';
-  timeBtn.setAttribute('aria-pressed', 'false');
-  overlay.appendChild(timeBtn);
-  timeBtn.addEventListener('click', () => {
-    timeMode = !timeMode;
-    timeBtn.setAttribute('aria-pressed', String(timeMode));
-    con.setTimeMix(timeMode ? 1 : 0);
+  // The date-vs-likeness arrangement is a way of viewing the sky, not a destination — a quiet
+  // two-word switch by the minimap instead of a primary nav slot.
+  const layoutSwitch = document.createElement('div');
+  layoutSwitch.id = 'layout-switch';
+  const likenessBtn = document.createElement('button');
+  likenessBtn.textContent = 'Likeness';
+  likenessBtn.title = 'Arrange the constellation by visual similarity';
+  const dateBtn = document.createElement('button');
+  dateBtn.textContent = 'Date';
+  dateBtn.title = 'Arrange the constellation by calendar date';
+  layoutSwitch.append(likenessBtn, dateBtn);
+  overlay.appendChild(layoutSwitch);
+  const setLayout = (byDate: boolean) => {
+    likenessBtn.classList.toggle('active', !byDate);
+    dateBtn.classList.toggle('active', byDate);
+    likenessBtn.setAttribute('aria-pressed', String(!byDate));
+    dateBtn.setAttribute('aria-pressed', String(byDate));
+    timeMode = byDate;
+    con.setTimeMix(byDate ? 1 : 0);
     // The two layouts have very different extents (~92x52 vs ~93x93) -- refit so the one the
     // visitor just switched to is the one framed at ~85%, unless they've already taken over.
     if (!controls.hasUserMoved()) applyFraming();
-  });
+  };
+  likenessBtn.addEventListener('click', () => setLayout(false));
+  dateBtn.addEventListener('click', () => setLayout(true));
+  setLayout(false);
 
   const minimap = new Minimap(overlay, artworks, (x, y) => controls.flyTo(x, y, con.camera.position.z, 0.6));
 
@@ -127,16 +143,6 @@ async function boot() {
   // opens Index or Music, not on every boot. Both start as null/undefined and are constructed lazily
   // by the router below, on first route hit.
   let index: IndexView | null = null;
-  const indexBtn = document.createElement('button');
-  indexBtn.id = 'index-toggle';
-  indexBtn.textContent = 'Index';
-  indexBtn.title = 'Browse all 365 days (or press /)';
-  overlay.appendChild(indexBtn);
-  indexBtn.addEventListener('click', () => router.go({ kind: 'index' }));
-  addEventListener('keydown', e => {
-    if (e.key === '/' && !piece.isOpen() && !index?.isOpen() && !music?.isOpen()) { e.preventDefault(); router.go({ kind: 'index' }); }
-    if (e.key === 'Escape' && index?.isOpen()) router.go({ kind: 'home' });
-  });
 
   // undefined = not yet attempted; null = attempted and failed (disables the section for the rest
   // of the session, same as before); a MusicView instance = succeeded. null from the start when
@@ -144,27 +150,39 @@ async function boot() {
   // "shows nothing rather than crashing the rest of the app" by skipping construction entirely
   // rather than showing a button that opens nothing.
   let music: MusicView | null | undefined = musicData ? undefined : null;
-  const musicBtn = document.createElement('button');
-  musicBtn.id = 'music-toggle';
-  musicBtn.textContent = 'Music';
-  musicBtn.title = 'Chaos of Zen discography';
-  if (musicData) {
-    overlay.appendChild(musicBtn);
-    musicBtn.addEventListener('click', () => router.go({ kind: 'music' }));
-  }
+
+  let story: StoryView | null = null;
+  const nav = new Nav(overlay, kind => router.go({ kind }), { hasSound: !!musicData });
+
+  addEventListener('keydown', e => {
+    if (e.target instanceof HTMLInputElement) return; // typing in the search field
+    const viewOpen = piece.isOpen() || index?.isOpen() || music?.isOpen() || story?.isOpen();
+    if (e.key === '/' && !viewOpen) { e.preventDefault(); router.go({ kind: 'attractors' }); }
+    if (e.key === 't' && !viewOpen) router.go({ kind: 'today' });
+    if (e.key === 'Escape' && index?.isOpen()) router.go({ kind: 'home' });
+  });
 
   const router = new Router(async r => {
-    if (r.kind === 'music') {
-      piece.close(); index?.close();
+    // Scene chrome (word-row, minimap, layout switch, today caption) belongs to the scene:
+    // hidden the moment any veil or piece takes over, back when the visitor returns home.
+    overlay.classList.toggle('view-open', r.kind !== 'home');
+    nav.setActive(r.kind === 'attractors' || r.kind === 'sound' || r.kind === 'story' ? r.kind : null);
+    if (r.kind === 'today') {
+      // /today/ is a resolver, not a place: replace onto the real day so a shared URL always
+      // captures the specific piece, then let the day handler below run via the re-entrant go().
+      router.go({ kind: 'day', slug: resolveToday(new Date(), artworks).slug }, { replace: true });
+      return;
+    }
+    if (r.kind === 'sound') {
+      piece.close(); index?.close(); story?.close();
       // First hit only (music === undefined): build the view now. A throw here disables the
-      // section for the rest of the session (music = null) -- mirroring the try/catch that used
-      // to guard eager construction at boot, just deferred to this later trigger. musicData is
-      // guaranteed non-null here since music only starts `undefined` (not `null`) when it was.
+      // section for the rest of the session (music = null). musicData is guaranteed non-null
+      // here since music only starts `undefined` (not `null`) when it was.
       if (music === undefined) {
         try {
           music = new MusicView(overlay, musicData!, () => router.go({ kind: 'home' }));
         } catch (err) {
-          console.error('MusicView failed to construct, disabling Music section', err);
+          console.error('MusicView failed to construct, disabling Sound section', err);
           music = null;
         }
       }
@@ -172,12 +190,18 @@ async function boot() {
       return;
     }
     music?.close();
-    if (r.kind === 'index') {
-      piece.close();
+    if (r.kind === 'attractors') {
+      piece.close(); story?.close();
       (index ??= new IndexView(overlay, artworks, slug => { index!.close(); router.go({ kind: 'day', slug }); })).open();
       return;
     }
     index?.close();
+    if (r.kind === 'story') {
+      piece.close();
+      (story ??= new StoryView(overlay, () => router.go({ kind: 'home' }))).open();
+      return;
+    }
+    story?.close();
     if (r.kind === 'day' && bySlug.has(r.slug)) {
       const i = bySlug.get(r.slug)!;
       const p = con.positionOf(i);
@@ -196,7 +220,9 @@ async function boot() {
     if (i !== null) router.go({ kind: 'day', slug: artworks[i].slug });
   };
 
-  router.go(router.current()); // honor deep links like /day/042-spirality/
+  // Honor deep links AND canonicalize legacy URLs (/index/, /music/, /about/) onto the new
+  // paths without adding a history entry.
+  router.go(router.current(), { replace: true });
 
   let lastT = 0;
   const loop = (t: number) => {
@@ -209,7 +235,7 @@ async function boot() {
       con.renderer.render(liveScene, con.camera);
       con.renderer.autoClear = true;
     }
-    if (!piece.isOpen() && !index?.isOpen() && !music?.isOpen()) {
+    if (!piece.isOpen() && !index?.isOpen() && !music?.isOpen() && !story?.isOpen()) {
       labels.update(con.camera, canvas, i => con.positionOf(i));
       minimap.update(con.camera, canvas, i => con.positionOf(i));
     } else {
