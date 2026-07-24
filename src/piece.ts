@@ -4,6 +4,7 @@ import { imageUrl, dayToDate } from './data';
 import { getFamily } from './attractor/families';
 import { normalizeFuncParams } from './attractor/families/polynomialFunc';
 import { composeIfsBlocks, ifsCpuStep } from './attractor/families/ifs';
+import { juliaCpuStep } from './attractor/families/julia';
 import { LiveAttractor, type SeedSpec } from './attractor/gpgpu';
 import { pickTintColor } from './attractor/palette';
 import { pickTier } from './attractor/tiers';
@@ -377,6 +378,18 @@ export function estimateUnravelDisplay(params: number[]): { scale: number; cente
   return sampleSettledTrajectory(step, s, 500, 4000);
 }
 
+// Julia: quaternion inverse iteration (see julia.ts). The 4th quaternion component lives in a
+// closure here; the estimator's xyz IS the rendered slice, so bounds/seeds line up with the GPU.
+export function estimateJuliaDisplay(params: number[]): { scale: number; centerX: number; centerY: number; centerZ: number; seed: SeedSpec } {
+  const q = { x: 0.5, y: 0.3, z: 0.2, w: 0.1 };
+  const s = { x: q.x, y: q.y, z: q.z };
+  const step = () => {
+    juliaCpuStep(params, q, Math.random);
+    s.x = q.x; s.y = q.y; s.z = q.z;
+  };
+  return sampleSettledTrajectory(step, s, 200, 4000);
+}
+
 // One entry point for "how should this family's live cloud be scaled/positioned/seeded," instead
 // of open() re-deriving it via a chain of `attractor.system === X ? estimateX(...) : null` calls
 // followed by two parallel scale/centerZ ternaries walking the same chain again (the shape that
@@ -414,6 +427,7 @@ const DISPLAY_ESTIMATORS: Record<string, (params: number[]) => DisplayResult> = 
   ifs: estimateIfsDisplay,
   icon: estimateIconDisplay,
   unravel: estimateUnravelDisplay,
+  julia: estimateJuliaDisplay,
   // Every other in-scope family falls through to open()'s { scale: 1, centerZ: 0, seed: undefined }
   // default.
 };
