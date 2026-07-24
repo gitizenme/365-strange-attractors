@@ -21,7 +21,7 @@ describe.skipIf(!existsSync(DATA))('attractors.json completeness', () => {
       }
     }
   });
-  it('in-scope days total 51', () => {
-    expect(attractors.filter(a => a.system !== 'static-only').length).toBe(51);
+  it('in-scope days total 85', () => {
+    expect(attractors.filter(a => a.system !== 'static-only').length).toBe(85);
   });
 });

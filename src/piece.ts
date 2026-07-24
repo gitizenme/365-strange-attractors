@@ -3,6 +3,8 @@ import type { Artwork } from './data';
 import { imageUrl, dayToDate } from './data';
 import { getFamily } from './attractor/families';
 import { normalizeFuncParams } from './attractor/families/polynomialFunc';
+import { composeIfsBlocks, ifsCpuStep } from './attractor/families/ifs';
+import { juliaCpuStep } from './attractor/families/julia';
 import { LiveAttractor, type SeedSpec } from './attractor/gpgpu';
 import { pickTintColor } from './attractor/palette';
 import { pickTier } from './attractor/tiers';
@@ -63,6 +65,7 @@ const FAMILY_LABELS: Record<string, string> = {
   lorenz: 'Lorenz', lorenz_84: 'Lorenz-84', icon: 'Field–Golubitsky icon', pickover: 'Pickover',
   chaotic_flow: 'Chaotic flow', polynomial_a: 'Polynomial A', polynomial_b: 'Polynomial B',
   polynomial_c: 'Polynomial C', polynomial_func: 'Polynomial', polynomial_sprott: 'Polynomial (Sprott)',
+  julia: 'Julia (quaternion)', ifs: 'IFS', unravel: 'Unravel',
 };
 export function familyLabel(system: string | undefined): string | null {
   if (!system) return null;
@@ -75,12 +78,33 @@ export function familyLabel(system: string | undefined): string | null {
 // family, either side static-only or unknown — falls back to the plain dissolve (open()'s
 // existing dispose/reconstruct cycle).
 export function transitionKind(
-  current: { day: number; system: string } | null,
-  next: { day: number; system: string } | null,
+  current: { day: number; system: string; params?: number[] } | null,
+  next: { day: number; system: string; params?: number[] } | null,
 ): 'morph' | 'dissolve' {
   if (!current || !next) return 'dissolve';
   if (current.system === 'static-only' || next.system === 'static-only') return 'dissolve';
-  return current.system === next.system ? 'morph' : 'dissolve';
+  if (current.system !== next.system) return 'dissolve';
+  // param-interpolation morphs need structurally compatible param lists: same length always
+  // (ifs matrix counts differ across days), and for icon/julia the same integer degree/Level
+  // (degree/Level are structural integers driving the map's order — a fractional mix of 3 and 5
+  // is meaningless).
+  if (current.params && next.params) {
+    if (current.params.length !== next.params.length) return 'dissolve';
+    if (current.system === 'icon' && current.params[0] !== next.params[0]) return 'dissolve';
+    if (current.system === 'julia' && current.params[0] !== next.params[0]) return 'dissolve';
+  }
+  return 'morph';
+}
+
+// One canonical file-params → LiveAttractor-params mapping. ifs composes its 16-float file
+// blocks into the 13-float stride the GLSL consumes (weights normalized); polynomial_func pads
+// its 3 genuinely different raw lengths into the fixed 40-slot shape; everything else passes
+// through. Used by BOTH the open() construction path and the morph-target path — the two must
+// never disagree on shape.
+export function toLiveParams(system: string, params: number[]): number[] {
+  if (system === 'ifs') return composeIfsBlocks(params);
+  if (system === 'polynomial_func') return normalizeFuncParams(params);
+  return params;
 }
 
 // Both estimate*Display functions below need the same shape of work: mirror a family's glslStep
@@ -331,6 +355,63 @@ export function estimatePolynomialFuncDisplay(rawParams: number[]): { scale: num
   return sampleSettledTrajectory(step, state, 3000, 3000);
 }
 
+// IFS (chaos game): a single CPU chaos-game trajectory is exactly as ergodic as any other
+// family's settled trajectory — same sampleSettledTrajectory pattern applies. Receives the FILE
+// params (16-float blocks); LiveAttractor receives the composed 13-float blocks via toLiveParams.
+export function estimateIfsDisplay(fileParams: number[]): { scale: number; centerX: number; centerY: number; centerZ: number; seed: SeedSpec } {
+  const live = composeIfsBlocks(fileParams);
+  const s = { x: 0.1, y: 0.1, z: 0.1 };
+  const step = () => ifsCpuStep(live, s, Math.random);
+  return sampleSettledTrajectory(step, s, 200, 4000);
+}
+
+// Icon: mirrors icon.ts's glslStep (see its header for the formula). The map lives in the
+// x/y plane with |p| as height, so the trajectory is genuinely 3D for display purposes.
+export function estimateIconDisplay(params: number[]): { scale: number; centerX: number; centerY: number; centerZ: number; seed: SeedSpec } {
+  // r = z^(degree-1) — see src/attractor/families/icon.ts header for why Chaoscope's Degree is
+  // the symmetry order n, not the rotor exponent (which is n-1).
+  const d = Math.round(params[0]);
+  const [, alpha, beta, lambda, gamma, omega] = params;
+  const s = { x: 0.1, y: 0.1, z: 0 };
+  const step = () => {
+    let rx = 1, ry = 0;
+    for (let i = 0; i < d - 1; i++) { const t = rx * s.x - ry * s.y; ry = rx * s.y + ry * s.x; rx = t; }
+    const pp = lambda + alpha * (s.x * s.x + s.y * s.y) + beta * (s.x * rx - s.y * ry);
+    const nx = pp * s.x + gamma * rx - omega * s.y;
+    const ny = pp * s.y - gamma * ry + omega * s.x;
+    s.x = nx; s.y = ny; s.z = Math.abs(pp);
+  };
+  return sampleSettledTrajectory(step, s, 500, 4000);
+}
+
+// Unravel: mirrors unravel.ts's glslStep (see its header for the formula and the radial fold).
+export function estimateUnravelDisplay(params: number[]): { scale: number; centerX: number; centerY: number; centerZ: number; seed: SeedSpec } {
+  const [a, e, u, L, N, V, r] = params;
+  const s = { x: 0.1, y: 0.1, z: 0.1 };
+  const step = () => {
+    let nx = L * (s.z + a), ny = N * (s.x + e), nz = V * (s.y + u);
+    const m = Math.hypot(nx, ny, nz);
+    if (m > r && r > 0) {
+      const p = 1 - (r * (Math.floor(m / r) + 1)) / m;
+      nx *= p; ny *= p; nz *= p;
+    }
+    s.x = nx; s.y = ny; s.z = nz;
+  };
+  return sampleSettledTrajectory(step, s, 500, 4000);
+}
+
+// Julia: quaternion inverse iteration (see julia.ts). The 4th quaternion component lives in a
+// closure here; the estimator's xyz IS the rendered slice, so bounds/seeds line up with the GPU.
+export function estimateJuliaDisplay(params: number[]): { scale: number; centerX: number; centerY: number; centerZ: number; seed: SeedSpec } {
+  const q = { x: 0.5, y: 0.3, z: 0.2, w: 0.1 };
+  const s = { x: q.x, y: q.y, z: q.z };
+  const step = () => {
+    juliaCpuStep(params, q, Math.random);
+    s.x = q.x; s.y = q.y; s.z = q.z;
+  };
+  return sampleSettledTrajectory(step, s, 200, 4000);
+}
+
 // One entry point for "how should this family's live cloud be scaled/positioned/seeded," instead
 // of open() re-deriving it via a chain of `attractor.system === X ? estimateX(...) : null` calls
 // followed by two parallel scale/centerZ ternaries walking the same chain again (the shape that
@@ -365,8 +446,12 @@ const DISPLAY_ESTIMATORS: Record<string, (params: number[]) => DisplayResult> = 
   polynomial_func: estimatePolynomialFuncDisplay,
   polynomial_a: estimatePolynomialADisplay,
   polynomial_b: estimatePolynomialBDisplay,
-  // Every other in-scope family (currently none — all 7 live families in this dataset are listed
-  // above) falls through to open()'s { scale: 1, centerZ: 0, seed: undefined } default.
+  ifs: estimateIfsDisplay,
+  icon: estimateIconDisplay,
+  unravel: estimateUnravelDisplay,
+  julia: estimateJuliaDisplay,
+  // Every other in-scope family falls through to open()'s { scale: 1, centerZ: 0, seed: undefined }
+  // default.
 };
 
 export interface LiveDeps {
@@ -535,14 +620,17 @@ export class PieceView {
     const curAttr = this.attractorsByDay.get(this.current.day);
     const nextAttr = this.attractorsByDay.get(next.day);
     const kind = transitionKind(
-      curAttr ? { day: curAttr.day, system: curAttr.system } : null,
-      nextAttr ? { day: nextAttr.day, system: nextAttr.system } : null,
+      curAttr ? { day: curAttr.day, system: curAttr.system, params: curAttr.params } : null,
+      nextAttr ? { day: nextAttr.day, system: nextAttr.system, params: nextAttr.params } : null,
     );
     if (kind === 'morph' && this.liveAttractor && nextAttr?.params) {
       // Capture the live instance we're morphing so a stale rAF tick can never touch a
       // *different* (disposed-and-replaced) instance — see the guard inside step() below.
       const morphing = this.liveAttractor;
-      morphing.setMorphTarget(nextAttr.params, 0);
+      // morph target must go through the same file→live mapping as construction, or the
+      // uniform arrays would mix incompatible layouts mid-interpolation
+      const morphTargetParams = toLiveParams(nextAttr.system, nextAttr.params);
+      morphing.setMorphTarget(morphTargetParams, 0);
       const start = performance.now();
       const step = () => {
         // open()/close() may have already disposed this exact instance and swapped in a new
@@ -550,9 +638,9 @@ export class PieceView {
         // of the nav arrow. Bail rather than mutate a disposed GPUComputationRenderer.
         if (this.liveAttractor !== morphing) return;
         const t = Math.min(1, (performance.now() - start) / 800);
-        morphing.setMorphTarget(nextAttr.params!, t);
+        morphing.setMorphTarget(morphTargetParams, t);
         if (t < 1) requestAnimationFrame(step);
-        else { morphing.setParams(nextAttr.params!); morphing.setMorphTarget(null, 0); }
+        else { morphing.setParams(morphTargetParams); morphing.setMorphTarget(null, 0); }
       };
       requestAnimationFrame(step);
     }
@@ -628,8 +716,8 @@ export class PieceView {
     if (family && attractor?.params && this.tier && !KNOWN_DEGENERATE_DAYS.has(a.day)) {
       try {
         // See DISPLAY_ESTIMATORS above (and each estimate*Display function it wraps) for why each
-        // family's scale/centerZ/seed is what it is. Families with no entry (currently none — all
-        // 7 live families here have one) fall back to an unscaled, uncentered, unseeded default.
+        // family's scale/centerZ/seed is what it is. Families with no entry (currently only
+        // polynomial_sprott's single day) fall back to an unscaled, uncentered, unseeded default.
         const display = DISPLAY_ESTIMATORS[attractor.system]?.(attractor.params) ?? { scale: 1, centerX: 0, centerY: 0, centerZ: 0 };
         const liveSeed = display.seed && display.seed.points.length >= 3 ? display.seed : undefined;
         // polynomial_func's real archive days have 3 genuinely different underlying parameter-
@@ -637,7 +725,7 @@ export class PieceView {
         // AttractorFamily/LiveAttractor need one fixed-size params array matching paramCount.
         // normalizeFuncParams pads/tags the raw params into that fixed 40-slot shape; every
         // other family passes its raw params through unchanged.
-        const liveParams = attractor.system === 'polynomial_func' ? normalizeFuncParams(attractor.params) : attractor.params;
+        const liveParams = toLiveParams(attractor.system, attractor.params);
         const tint = pickTintColor(a.palette);
         this.liveAttractor = new LiveAttractor(this.live_.renderer, family, liveParams, this.tier, liveSeed, tint);
         // LiveAttractor's own settling burst (Task 3, fixed at 150 steps) integrates only

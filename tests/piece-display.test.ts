@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { estimateChaoticFlowDisplay, estimateLorenz84Display } from '../src/piece';
+import { estimateChaoticFlowDisplay, estimateLorenz84Display, estimateIfsDisplay, estimateIconDisplay, estimateUnravelDisplay, estimateJuliaDisplay } from '../src/piece';
+import { juliaCpuStep } from '../src/attractor/families/julia';
 
 // day 002-event-horizon's real params (lorenz_84: a, b, F, G, dt)
 const LORENZ84_PARAMS = [4.41558441558442, 1.401, 1.798, 1.997, 0.299];
@@ -65,4 +66,64 @@ describe('estimateChaoticFlowDisplay', () => {
     // day 025's natural extent is much larger than day 001's, so its jitter should be too.
     expect(slow.seed.jitter).toBeGreaterThan(fast.seed.jitter);
   });
+});
+
+describe('estimateIfsDisplay', () => {
+  it('yields a usable scale and seed for a two-matrix ifs', () => {
+    const fileParams = [
+      2.458, 0.247, 1.54, -0.568, 0.8, -0.498, -0.064, -0.067, 0.193, -0.123, -0.17, -0.175, 0.061, -0.233, 0.833, 0.5,
+      1.871, 2.966, 2.968, -0.456, -0.209, 0.899, -0.178, 0.049, -0.039, -0.139, -0.086, 0.182, -0.655, -0.399, 0.358, 0.5,
+    ];
+    const d = estimateIfsDisplay(fileParams);
+    expect(d.scale).toBeGreaterThan(0);
+    expect(Number.isFinite(d.scale)).toBe(true);
+    expect(d.seed.points.length).toBeGreaterThan(300);
+  });
+});
+
+describe('estimateIconDisplay', () => {
+  it('estimateIconDisplay: day 004 params give a bounded planar attractor with |p| height', () => {
+    const d = estimateIconDisplay([3, 0.082, 2.688, -1.455, 0.29, -0.004]);
+    expect(Number.isFinite(d.scale)).toBe(true);
+    expect(d.scale).toBeGreaterThan(0);
+    expect(d.seed.points.length).toBeGreaterThan(300);
+    // z channel is |p| ≥ 0 for every seed point
+    for (let i = 2; i < d.seed.points.length; i += 3) expect(d.seed.points[i]).toBeGreaterThanOrEqual(0);
+  });
+});
+
+it('estimateUnravelDisplay: day 017 params stay bounded through the fold', () => {
+  const d = estimateUnravelDisplay([0.403, -0.821, 0.855, -1.908, -1.53, 1.477, 1.869]);
+  expect(Number.isFinite(d.scale)).toBe(true);
+  expect(d.scale).toBeGreaterThan(0);
+  expect(d.seed.points.length).toBeGreaterThan(300);
+});
+
+it('juliaCpuStep inverts the forward map: (step result)^Level + c ≈ input', () => {
+  const params = [2, 0.3, 0.2, 0]; // Level 2, c = 0.3 + 0.2i
+  const q = { x: 0.5, y: 0.4, z: 0.1, w: 0.05 };
+  const input = { ...q };
+  juliaCpuStep(params, q, () => 0.9); // any branch
+  // forward: q² + c (quaternion square: (s,v)² = (s²−|v|², 2sv))
+  const s = q.x, vx = q.y, vy = q.z, vz = q.w;
+  const fs = s * s - (vx * vx + vy * vy + vz * vz) + 0.3;
+  const fx = 2 * s * vx + 0.2, fy = 2 * s * vy, fz = 2 * s * vz;
+  expect(fs).toBeCloseTo(input.x, 5);
+  expect(fx).toBeCloseTo(input.y, 5);
+  expect(fy).toBeCloseTo(input.z, 5);
+  expect(fz).toBeCloseTo(input.w, 5);
+});
+
+it('estimateJuliaDisplay: day 011 params (Level 10, small c) settle near the unit sphere', () => {
+  const d = estimateJuliaDisplay([10, 0.051948, 0.051948, Math.PI]);
+  expect(Number.isFinite(d.scale)).toBe(true);
+  expect(d.seed.points.length).toBeGreaterThan(300);
+  // magnitudes of the 3D slice cluster near ≤1 (the z^10 Julia set hugs the unit shell)
+  let within = 0, total = 0;
+  for (let i = 0; i + 2 < d.seed.points.length; i += 3) {
+    const m = Math.hypot(d.seed.points[i], d.seed.points[i + 1], d.seed.points[i + 2]);
+    total++;
+    if (m < 1.5) within++;
+  }
+  expect(within / total).toBeGreaterThan(0.9);
 });

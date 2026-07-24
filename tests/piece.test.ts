@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { neighborDay, captionFor, familyLabel } from '../src/piece';
+import { neighborDay, captionFor, familyLabel, toLiveParams } from '../src/piece';
 
 describe('neighborDay', () => {
   it('increments, decrements, and wraps', () => {
@@ -29,4 +29,14 @@ describe('familyLabel', () => {
     expect(familyLabel('mystery_family')).toBeNull();
     expect(familyLabel(undefined)).toBeNull();
   });
+});
+
+it('toLiveParams composes ifs blocks, normalizes polynomial_func, passes others through', () => {
+  const p16 = [0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1];
+  expect(toLiveParams('ifs', p16)).toHaveLength(13);
+  expect(toLiveParams('lorenz', [10, 28, 2.66, 0.01])).toEqual([10, 28, 2.66, 0.01]);
+});
+
+it('all four phase-2b families have caption labels', () => {
+  for (const s of ['icon', 'julia', 'ifs', 'unravel']) expect(familyLabel(s)).toBeTruthy();
 });
