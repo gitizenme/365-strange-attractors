@@ -12,3 +12,6 @@ public/attractors/
 public/sound/
 public/story/
 public/today/
+
+# superpowers runtime state — not part of the repo
+.superpowers/
