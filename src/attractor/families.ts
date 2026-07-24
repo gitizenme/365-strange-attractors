@@ -8,6 +8,7 @@ import { CHAOTIC_FLOW } from './families/chaoticFlow';
 import { POLYNOMIAL_C } from './families/polynomialC';
 import { POLYNOMIAL_FUNC } from './families/polynomialFunc';
 import { POLYNOMIAL_SPROTT } from './families/polynomialSprott';
+import { IFS } from './families/ifs';
 
 export const FAMILIES: Record<string, AttractorFamily> = {
   lorenz: LORENZ,
@@ -19,6 +20,7 @@ export const FAMILIES: Record<string, AttractorFamily> = {
   polynomial_c: POLYNOMIAL_C,
   polynomial_func: POLYNOMIAL_FUNC,
   polynomial_sprott: POLYNOMIAL_SPROTT,
+  ifs: IFS,
 };
 
 export function getFamily(system: string): AttractorFamily | null {

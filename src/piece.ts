@@ -3,6 +3,7 @@ import type { Artwork } from './data';
 import { imageUrl, dayToDate } from './data';
 import { getFamily } from './attractor/families';
 import { normalizeFuncParams } from './attractor/families/polynomialFunc';
+import { composeIfsBlocks, ifsCpuStep } from './attractor/families/ifs';
 import { LiveAttractor, type SeedSpec } from './attractor/gpgpu';
 import { pickTintColor } from './attractor/palette';
 import { pickTier } from './attractor/tiers';
@@ -331,6 +332,16 @@ export function estimatePolynomialFuncDisplay(rawParams: number[]): { scale: num
   return sampleSettledTrajectory(step, state, 3000, 3000);
 }
 
+// IFS (chaos game): a single CPU chaos-game trajectory is exactly as ergodic as any other
+// family's settled trajectory — same sampleSettledTrajectory pattern applies. Receives the FILE
+// params (16-float blocks); LiveAttractor receives the composed 13-float blocks via toLiveParams.
+export function estimateIfsDisplay(fileParams: number[]): { scale: number; centerX: number; centerY: number; centerZ: number; seed: SeedSpec } {
+  const live = composeIfsBlocks(fileParams);
+  const s = { x: 0.1, y: 0.1, z: 0.1 };
+  const step = () => ifsCpuStep(live, s, Math.random);
+  return sampleSettledTrajectory(step, s, 200, 4000);
+}
+
 // One entry point for "how should this family's live cloud be scaled/positioned/seeded," instead
 // of open() re-deriving it via a chain of `attractor.system === X ? estimateX(...) : null` calls
 // followed by two parallel scale/centerZ ternaries walking the same chain again (the shape that
@@ -365,8 +376,9 @@ const DISPLAY_ESTIMATORS: Record<string, (params: number[]) => DisplayResult> = 
   polynomial_func: estimatePolynomialFuncDisplay,
   polynomial_a: estimatePolynomialADisplay,
   polynomial_b: estimatePolynomialBDisplay,
-  // Every other in-scope family (currently none — all 7 live families in this dataset are listed
-  // above) falls through to open()'s { scale: 1, centerZ: 0, seed: undefined } default.
+  ifs: estimateIfsDisplay,
+  // Every other in-scope family falls through to open()'s { scale: 1, centerZ: 0, seed: undefined }
+  // default.
 };
 
 export interface LiveDeps {

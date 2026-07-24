@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { estimateChaoticFlowDisplay, estimateLorenz84Display } from '../src/piece';
+import { estimateChaoticFlowDisplay, estimateLorenz84Display, estimateIfsDisplay } from '../src/piece';
 
 // day 002-event-horizon's real params (lorenz_84: a, b, F, G, dt)
 const LORENZ84_PARAMS = [4.41558441558442, 1.401, 1.798, 1.997, 0.299];
@@ -64,5 +64,18 @@ describe('estimateChaoticFlowDisplay', () => {
     expect(slow.seed.jitter).toBeGreaterThan(0);
     // day 025's natural extent is much larger than day 001's, so its jitter should be too.
     expect(slow.seed.jitter).toBeGreaterThan(fast.seed.jitter);
+  });
+});
+
+describe('estimateIfsDisplay', () => {
+  it('yields a usable scale and seed for a two-matrix ifs', () => {
+    const fileParams = [
+      2.458, 0.247, 1.54, -0.568, 0.8, -0.498, -0.064, -0.067, 0.193, -0.123, -0.17, -0.175, 0.061, -0.233, 0.833, 0.5,
+      1.871, 2.966, 2.968, -0.456, -0.209, 0.899, -0.178, 0.049, -0.039, -0.139, -0.086, 0.182, -0.655, -0.399, 0.358, 0.5,
+    ];
+    const d = estimateIfsDisplay(fileParams);
+    expect(d.scale).toBeGreaterThan(0);
+    expect(Number.isFinite(d.scale)).toBe(true);
+    expect(d.seed.points.length).toBeGreaterThan(300);
   });
 });
