@@ -19,8 +19,13 @@ describe.skipIf(!existsSync(DATA))('pipeline output completeness', () => {
         expect(existsSync(`public/images/${size}/${a.slug}.jpg`), `${size}/${a.slug}`).toBe(true);
     }
   });
-  it('atlas covers every slug', () => {
+  it('atlas covers every slug and emits both webp tiers, no leftover png', () => {
     const atlas = JSON.parse(readFileSync('public/data/atlas.json', 'utf8'));
     for (const a of art) expect(atlas.index[a.slug]).toBeGreaterThanOrEqual(0);
+    expect(atlas.files.small).toBe('/images/atlas-32.webp');
+    expect(atlas.files.full).toBe('/images/atlas-128.webp');
+    expect(existsSync('public/images/atlas-32.webp')).toBe(true);
+    expect(existsSync('public/images/atlas-128.webp')).toBe(true);
+    expect(existsSync('public/images/atlas.png')).toBe(false);
   });
 });

@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { Artwork, Atlas } from './data';
+import type { Bounds } from './controls';
 import { spiralPosition } from './timeview';
 
 export function atlasUv(atlas: Atlas, slug: string) {
@@ -8,6 +9,31 @@ export function atlasUv(atlas: Atlas, slug: string) {
   const row = Math.floor(i / atlas.cols);
   const su = 1 / atlas.cols, sv = 1 / atlas.rows;
   return { u: col * su, v: 1 - (row + 1) * sv, su, sv };
+}
+
+// Bounds of the cloud, padded ~10% on each axis so the visitor never sees content flush against
+// the edge. Two distinct consumers need two distinct shapes:
+// - 'union' (default): UMAP layout (a.x, a.y) ∪ time-spiral layout (spiralPosition(a.day)) — the
+//   PAN CLAMP. Unioned so switching to Time mode never strands sprites outside the pannable range;
+//   the spiral's radius (up to 50, see spiralPosition) doesn't always agree with the UMAP extent.
+// - 'likeness' / 'date': one layout only — the FRAMING fit. Fitting the union instead visibly
+//   breaks the ~85%-fill goal: the real archive's UMAP layout is ~92x52 world units while the
+//   union is ~106x102 (near-square), so on a wide viewport fitCamera(union) is height-limited and
+//   the actually-visible likeness cloud fills only ~43% of the screen (measured, Task 9).
+export function computeCloudBounds(artworks: { day: number; x: number; y: number }[],
+                                   layout: 'union' | 'likeness' | 'date' = 'union'): Bounds {
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  for (const a of artworks) {
+    const pts = layout === 'likeness' ? [{ x: a.x, y: a.y }]
+      : layout === 'date' ? [spiralPosition(a.day)]
+      : [{ x: a.x, y: a.y }, spiralPosition(a.day)];
+    for (const p of pts) {
+      minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x);
+      minY = Math.min(minY, p.y); maxY = Math.max(maxY, p.y);
+    }
+  }
+  const padX = (maxX - minX) * 0.1, padY = (maxY - minY) * 0.1;
+  return { minX: minX - padX, maxX: maxX + padX, minY: minY - padY, maxY: maxY + padY };
 }
 
 const VERT = /* glsl */ `
@@ -24,8 +50,12 @@ void main() {
 
 const FRAG = /* glsl */ `
 uniform sampler2D uAtlas;
+uniform float uBrightness;
 varying vec2 vUv;
-void main() { gl_FragColor = texture2D(uAtlas, vUv); }`;
+void main() {
+  vec4 c = texture2D(uAtlas, vUv);
+  gl_FragColor = vec4(min(c.rgb * uBrightness, vec3(1.0)), c.a);
+}`;
 
 export class Constellation {
   readonly camera: THREE.PerspectiveCamera;
@@ -71,12 +101,27 @@ export class Constellation {
     geo.setAttribute('aScale', this.scaleAttr);
     geo.instanceCount = n;
 
-    const tex = new THREE.TextureLoader().load('/images/atlas.png');
-    tex.colorSpace = THREE.SRGBColorSpace;
+    const smallTex = new THREE.TextureLoader().load(atlas.files.small);
+    smallTex.colorSpace = THREE.SRGBColorSpace;
     this.material = new THREE.ShaderMaterial({
       vertexShader: VERT, fragmentShader: FRAG,
-      uniforms: { uAtlas: { value: tex }, uTime: { value: 0 }, uDrift: { value: 1 }, uMix: { value: 0 }, uSize: { value: 1.6 } },
+      uniforms: { uAtlas: { value: smallTex }, uTime: { value: 0 }, uDrift: { value: 1 }, uMix: { value: 0 }, uSize: { value: 1.6 }, uBrightness: { value: 1.25 } },
     });
+    // Full-resolution tile atlas loads in the background and swaps in on arrival (single-frame
+    // texture-uniform swap, no geometry/shader change) -- the preview tier above is already
+    // visible by then, so this reads as a seamless upgrade, not a pop-in. Disposing the old
+    // (small) texture frees its GPU memory once nothing references it any more.
+    new THREE.TextureLoader().load(
+      atlas.files.full,
+      fullTex => {
+        fullTex.colorSpace = THREE.SRGBColorSpace;
+        const old = this.material.uniforms.uAtlas.value as THREE.Texture;
+        this.material.uniforms.uAtlas.value = fullTex;
+        old.dispose();
+      },
+      undefined,
+      err => console.warn('full-resolution atlas failed to load, staying on the preview tier', err),
+    );
     const mesh = new THREE.Mesh(geo, this.material);
     mesh.frustumCulled = false;
     this.scene.add(mesh);

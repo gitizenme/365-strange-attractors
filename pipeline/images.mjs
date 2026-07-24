@@ -3,8 +3,9 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 const SIZES = [2000, 1024, 256];
-const TILE = 128;
 const COLS = 20;
+const TILE_FULL = 128;
+const TILE_SMALL = 32;
 
 export async function makeDerivatives(srcPath, slug, outRoot) {
   for (const size of SIZES) {
@@ -17,21 +18,35 @@ export async function makeDerivatives(srcPath, slug, outRoot) {
   }
 }
 
-export async function buildAtlas(items, outRoot) {
+async function compositeAtlas(items, tile, outPath, quality) {
   const rows = Math.ceil(items.length / COLS);
   const composites = [];
-  const index = {};
   for (let i = 0; i < items.length; i++) {
-    index[items[i].slug] = i;
     const buf = await sharp(items[i].srcPath)
-      .resize(TILE, TILE, { fit: 'cover' }).png().toBuffer();
-    composites.push({ input: buf, left: (i % COLS) * TILE, top: Math.floor(i / COLS) * TILE });
+      .resize(tile, tile, { fit: 'cover' }).png().toBuffer();
+    composites.push({ input: buf, left: (i % COLS) * tile, top: Math.floor(i / COLS) * tile });
   }
+  await sharp({ create: { width: COLS * tile, height: rows * tile, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 1 } } })
+    .composite(composites).webp({ quality }).toFile(outPath);
+  return rows;
+}
+
+// Two tiers from the same tile-compositing loop: a tiny 32px-tile atlas that loads first (whole
+// constellation as soft glowing forms in a few hundred ms, even on cellular) and a 128px-tile
+// atlas that swaps in when ready (src/constellation.ts owns the swap). No PNG atlas is written
+// any more -- the single 12.5 MB atlas.png this replaces was the single biggest blocker to first
+// paint (sprites stayed invisible until it fully arrived).
+export async function buildAtlas(items, outRoot) {
+  const index = {};
+  items.forEach((it, i) => { index[it.slug] = i; });
   mkdirSync(join(outRoot, 'images'), { recursive: true });
   mkdirSync(join(outRoot, 'data'), { recursive: true });
-  await sharp({ create: { width: COLS * TILE, height: rows * TILE, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 1 } } })
-    .composite(composites).png().toFile(join(outRoot, 'images', 'atlas.png'));
-  const manifest = { tile: TILE, cols: COLS, rows, index };
+  const rows = await compositeAtlas(items, TILE_FULL, join(outRoot, 'images', 'atlas-128.webp'), 78);
+  await compositeAtlas(items, TILE_SMALL, join(outRoot, 'images', 'atlas-32.webp'), 85);
+  const manifest = {
+    tile: TILE_FULL, cols: COLS, rows, index,
+    files: { small: '/images/atlas-32.webp', full: '/images/atlas-128.webp' },
+  };
   writeFileSync(join(outRoot, 'data', 'atlas.json'), JSON.stringify(manifest));
   return manifest;
 }

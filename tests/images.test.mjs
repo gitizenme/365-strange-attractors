@@ -27,13 +27,19 @@ describe('makeDerivatives', () => {
 });
 
 describe('buildAtlas', () => {
-  it('composites square tiles and writes manifest', async () => {
+  it('composites both tiers and writes a manifest with files', async () => {
     const items = [{ slug: '001-rose', srcPath: src }, { slug: '002-x', srcPath: src }];
     const manifest = await buildAtlas(items, dir);
-    expect(manifest).toEqual({ tile: 128, cols: 20, rows: 1, index: { '001-rose': 0, '002-x': 1 } });
-    const meta = await sharp(join(dir, 'images', 'atlas.png')).metadata();
-    expect(meta.width).toBe(20 * 128);
-    expect(meta.height).toBe(128);
+    expect(manifest).toEqual({
+      tile: 128, cols: 20, rows: 1, index: { '001-rose': 0, '002-x': 1 },
+      files: { small: '/images/atlas-32.webp', full: '/images/atlas-128.webp' },
+    });
+    const full = await sharp(join(dir, 'images', 'atlas-128.webp')).metadata();
+    expect(full.width).toBe(20 * 128);
+    expect(full.height).toBe(128);
+    const small = await sharp(join(dir, 'images', 'atlas-32.webp')).metadata();
+    expect(small.width).toBe(20 * 32);
+    expect(small.height).toBe(32);
     expect(JSON.parse(readFileSync(join(dir, 'data', 'atlas.json'), 'utf8'))).toEqual(manifest);
   });
 });
