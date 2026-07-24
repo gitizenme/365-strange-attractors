@@ -39,22 +39,24 @@ export function computeCloudBounds(artworks: { day: number; x: number; y: number
 const VERT = /* glsl */ `
 uniform float uTime; uniform float uDrift; uniform float uMix; uniform float uSize;
 attribute vec2 aPosA; attribute vec2 aPosB; attribute vec4 aUv; attribute float aScale;
-varying vec2 vUv;
+attribute float aGlow;
+varying vec2 vUv; varying float vGlow;
 void main() {
   vec2 base = mix(aPosA, aPosB, uMix);
   vec2 drift = uDrift * 0.12 * vec2(sin(uTime * 0.11 + base.y * 0.7), cos(uTime * 0.13 + base.x * 0.7));
   vec3 world = vec3(base + drift + position.xy * uSize * aScale, 0.0);
   vUv = vec2(aUv.x + uv.x * aUv.z, aUv.y + uv.y * aUv.w);
+  vGlow = aGlow * (0.7 + 0.3 * sin(uTime * 2.2));
   gl_Position = projectionMatrix * modelViewMatrix * vec4(world, 1.0);
 }`;
 
 const FRAG = /* glsl */ `
 uniform sampler2D uAtlas;
 uniform float uBrightness;
-varying vec2 vUv;
+varying vec2 vUv; varying float vGlow;
 void main() {
   vec4 c = texture2D(uAtlas, vUv);
-  gl_FragColor = vec4(min(c.rgb * uBrightness, vec3(1.0)), c.a);
+  gl_FragColor = vec4(min(c.rgb * uBrightness * (1.0 + 0.9 * vGlow), vec3(1.0)), c.a);
 }`;
 
 export class Constellation {
@@ -68,6 +70,9 @@ export class Constellation {
   private posA: Float32Array;
   private posB: Float32Array;
   private mix = 0; private targetMix = 0;
+  private glow: Float32Array;
+  private glowAttr: THREE.InstancedBufferAttribute;
+  readonly atlasReady: Promise<void>;
 
   constructor(private canvas: HTMLCanvasElement, private artworks: Artwork[], atlas: Atlas) {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -81,6 +86,7 @@ export class Constellation {
     const uvs = new Float32Array(n * 4);
     this.scales = new Float32Array(n).fill(1);
     this.targetScales = new Float32Array(n).fill(1);
+    this.glow = new Float32Array(n);
     artworks.forEach((a, i) => {
       this.posA[i * 2] = a.x; this.posA[i * 2 + 1] = a.y;
       const s = spiralPosition(a.day);
@@ -99,9 +105,13 @@ export class Constellation {
     geo.setAttribute('aUv', new THREE.InstancedBufferAttribute(uvs, 4));
     this.scaleAttr = new THREE.InstancedBufferAttribute(this.scales, 1);
     geo.setAttribute('aScale', this.scaleAttr);
+    this.glowAttr = new THREE.InstancedBufferAttribute(this.glow, 1);
+    geo.setAttribute('aGlow', this.glowAttr);
     geo.instanceCount = n;
 
-    const smallTex = new THREE.TextureLoader().load(atlas.files.small);
+    let atlasLoaded!: () => void;
+    this.atlasReady = new Promise<void>(res => { atlasLoaded = res; });
+    const smallTex = new THREE.TextureLoader().load(atlas.files.small, () => atlasLoaded());
     smallTex.colorSpace = THREE.SRGBColorSpace;
     this.material = new THREE.ShaderMaterial({
       vertexShader: VERT, fragmentShader: FRAG,
@@ -131,6 +141,14 @@ export class Constellation {
   setHover(index: number | null): void {
     this.targetScales.fill(1);
     if (index !== null) this.targetScales[index] = 1.35;
+  }
+
+  // At most one sprite glows (today's). The pulse itself is computed in the vertex shader from
+  // uTime, so nothing per-frame happens on the CPU here.
+  setHighlight(index: number | null): void {
+    this.glow.fill(0);
+    if (index !== null) this.glow[index] = 1;
+    this.glowAttr.needsUpdate = true;
   }
 
   setTimeMix(t: number): void { this.targetMix = t; }

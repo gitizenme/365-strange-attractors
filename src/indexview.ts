@@ -53,27 +53,29 @@ export class IndexView {
   }
 
   private cell(a: Artwork): HTMLElement {
-    const btn = document.createElement('button');
-    btn.className = 'day-cell';
-    btn.title = `${String(a.day).padStart(3, '0')} · ${a.title}`;
+    const link = document.createElement('a');
+    link.className = 'day-cell';
+    link.href = `/day/${a.slug}/`;
+    link.title = `${String(a.day).padStart(3, '0')} · ${a.title}`;
     const img = document.createElement('img');
     img.loading = 'lazy';
     img.src = imageUrl(a.slug, 256, 'jpg');
     img.alt = a.title;
     const num = document.createElement('span');
     num.textContent = String(dayToDate(a.day).date);
-    btn.append(img, num);
-    btn.addEventListener('click', () => this.onPick(a.slug));
-    return btn;
+    link.append(img, num);
+    link.addEventListener('click', e => { e.preventDefault(); this.onPick(a.slug); });
+    return link;
   }
 
   private renderResults(items: Artwork[]): void {
     this.results.innerHTML = '';
     for (const a of items) {
-      const b = document.createElement('button');
-      b.textContent = `${String(a.day).padStart(3, '0')} · ${a.title}`;
-      b.addEventListener('click', () => this.onPick(a.slug));
-      this.results.appendChild(b);
+      const link = document.createElement('a');
+      link.href = `/day/${a.slug}/`;
+      link.textContent = `${String(a.day).padStart(3, '0')} · ${a.title}`;
+      link.addEventListener('click', e => { e.preventDefault(); this.onPick(a.slug); });
+      this.results.appendChild(link);
     }
   }
 

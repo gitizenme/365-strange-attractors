@@ -56,6 +56,14 @@ for (const a of artworks) {
 }
 console.log(`pages: ${artworks.length} written`);
 
+import { renderRoutePage, ROUTE_PAGES } from './routepages.mjs';
+for (const rp of ROUTE_PAGES) {
+  const dir = join(OUT, rp.path.replaceAll('/', ''));
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, 'index.html'), renderRoutePage(rp));
+}
+console.log(`route pages: ${ROUTE_PAGES.length} written`);
+
 const attractors = buildAttractors(days, ARCHIVE, { readdirSync, readFileSync });
 writeFileSync(join(OUT, 'data', 'attractors.json'), JSON.stringify(attractors));
 const inScope = attractors.filter(a => a.system !== 'static-only').length;
@@ -76,4 +84,4 @@ if (force || !existsSync(join(OUT, 'favicon.ico'))) {
 }
 
 writeFileSync(join(OUT, 'sitemap.xml'), renderSitemap(days));
-console.log(`sitemap.xml: ${days.length + 1} urls`);
+console.log(`sitemap.xml: ${days.length + 4} urls`);

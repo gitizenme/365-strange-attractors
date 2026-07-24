@@ -1,4 +1,5 @@
 import { esc, metaTags } from './site.mjs';
+import { STATIC_NAV } from './routepages.mjs';
 
 export function renderPiecePage(a) {
   const num = String(a.day).padStart(3, '0');
@@ -33,6 +34,7 @@ ${head}
 </picture>
 <figcaption>${name} · 2010</figcaption>
 </figure>
+${STATIC_NAV}
 </div>
 <script type="module" src="/assets/app.js"></script>
 </body>

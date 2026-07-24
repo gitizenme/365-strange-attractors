@@ -57,6 +57,18 @@ export function captionFor(a: { day: number; title: string }): string {
   return `${String(a.day).padStart(3, '0')}/365 · ${a.title} · ${MONTHS[month - 1]} ${date}, 2010`;
 }
 
+// Quiet metadata line for the caption: the attractor family behind the day's piece. static-only
+// (Incendia-era) days and anything unrecognized show nothing rather than a raw identifier.
+const FAMILY_LABELS: Record<string, string> = {
+  lorenz: 'Lorenz', lorenz_84: 'Lorenz-84', icon: 'Field–Golubitsky icon', pickover: 'Pickover',
+  chaotic_flow: 'Chaotic flow', polynomial_a: 'Polynomial A', polynomial_b: 'Polynomial B',
+  polynomial_c: 'Polynomial C', polynomial_func: 'Polynomial', polynomial_sprott: 'Polynomial (Sprott)',
+};
+export function familyLabel(system: string | undefined): string | null {
+  if (!system) return null;
+  return FAMILY_LABELS[system] ?? null;
+}
+
 // Deliberately conservative: per the spec's adjacency finding, only 6 day-pairs in the whole
 // archive are same-family adjacent (share a `system` and neither is 'static-only'), so those
 // are the only ones worth the parameter-interpolation morph; everything else — different
@@ -364,7 +376,7 @@ export interface LiveDeps {
   camera: THREE.PerspectiveCamera;
   canvas: HTMLCanvasElement;
   controls: Controls;
-  hideImageBtn: HTMLButtonElement;
+  modeToggle: HTMLElement;
   brightnessSlider: HTMLInputElement;
 }
 
@@ -379,6 +391,10 @@ export class PieceView {
   private img: HTMLImageElement;
   private sources: { avif: HTMLSourceElement; webp: HTMLSourceElement };
   private caption: HTMLElement;
+  private prevBtn: HTMLButtonElement;
+  private nextBtn: HTMLButtonElement;
+  private listenBtn: HTMLButtonElement;
+  private audioEl = new Audio();
   private current: Artwork | null = null;
   private bySlug: Map<string, Artwork>;
   private byDay: Map<number, Artwork>;
@@ -407,11 +423,11 @@ export class PieceView {
     // style.css's comments on .piece/.piece-backdrop/.piece-close): an element with opacity < 1
     // creates its own stacking context that traps its descendants' z-index values, so while
     // .piece-backdrop was still .piece itself and had `transition: opacity`, .piece-close's
-    // z-index (needed to beat #time-toggle, which sits in nearly the same corner) was briefly
-    // trapped and ineffective during every fade-in, letting #time-toggle steal the click. Moving
-    // the fading backdrop to a sibling wrapper and giving .piece-close its own independent opacity
-    // transition (style.css) means .piece-close is never a descendant of anything that's
-    // opacity-animating, so its z-index always compares directly against #time-toggle's.
+    // z-index (needed to beat the piece view's own backdrop) was briefly trapped and ineffective
+    // during every fade-in, letting the backdrop steal the click. Moving the fading backdrop to a
+    // sibling wrapper and giving .piece-close its own independent opacity transition (style.css)
+    // means .piece-close is never a descendant of anything that's opacity-animating, so its
+    // z-index always compares directly against the backdrop's.
     this.root.innerHTML = `
       <div class="piece-backdrop">
         <button class="piece-nav prev" aria-label="Previous day" title="Previous day">‹</button>
@@ -424,13 +440,22 @@ export class PieceView {
         </figure>
         <button class="piece-nav next" aria-label="Next day" title="Next day">›</button>
       </div>
-      <button class="piece-close" aria-label="Close" title="Close">×</button>`;
+      <button class="piece-close" aria-label="Return to the constellation" title="Return to the constellation"><span class="glyph">×</span> Sky</button>`;
     overlay.appendChild(this.root);
     const backdrop = this.root.querySelector('.piece-backdrop')!;
     const [avif, webp] = this.root.querySelectorAll('source');
     this.sources = { avif, webp };
     this.img = this.root.querySelector('img')!;
     this.caption = this.root.querySelector('figcaption')!;
+    this.prevBtn = this.root.querySelector('.prev')!;
+    this.nextBtn = this.root.querySelector('.next')!;
+    this.listenBtn = document.createElement('button');
+    this.listenBtn.className = 'piece-listen';
+    this.listenBtn.addEventListener('click', () => {
+      if (this.audioEl.paused) { this.audioEl.play(); this.listenBtn.textContent = '❚❚ Pause'; }
+      else { this.audioEl.pause(); this.listenBtn.textContent = '▶ Listen'; }
+    });
+    this.audioEl.addEventListener('ended', () => { this.listenBtn.textContent = '▶ Listen'; });
     this.root.querySelector('.prev')!.addEventListener('click', () => this.nav(-1));
     this.root.querySelector('.next')!.addEventListener('click', () => this.nav(1));
     this.root.querySelector('.piece-close')!.addEventListener('click', () => this.requestClose());
@@ -540,6 +565,7 @@ export class PieceView {
     // dissolve/morph "left behind" as the view moves on. open() sets a fresh `orbit` for the
     // next piece once flyTo resolves, healing this back to normal.
     this.orbit = null;
+    this.audioEl.pause();
     this.onNavigate(next.slug);
   }
 
@@ -557,6 +583,28 @@ export class PieceView {
     this.img.src = imageUrl(a.slug, 1024, 'jpg');
     this.img.alt = `${a.title} — strange attractor, day ${a.day} of 365, 2010`;
     this.caption.textContent = captionFor(a);
+    // Destination-named arrows: the hover/focus label says where you'll land, not just "previous".
+    const prevArt = this.byDay.get(neighborDay(a.day, -1))!;
+    const nextArt = this.byDay.get(neighborDay(a.day, 1))!;
+    this.prevBtn.dataset.label = `day ${String(prevArt.day).padStart(3, '0')}`;
+    this.prevBtn.title = `day ${String(prevArt.day).padStart(3, '0')} · ${prevArt.title}`;
+    this.prevBtn.setAttribute('aria-label', `Previous — day ${prevArt.day}: ${prevArt.title}`);
+    this.nextBtn.dataset.label = `day ${String(nextArt.day).padStart(3, '0')}`;
+    this.nextBtn.title = `day ${String(nextArt.day).padStart(3, '0')} · ${nextArt.title}`;
+    this.nextBtn.setAttribute('aria-label', `Next — day ${nextArt.day}: ${nextArt.title}`);
+    const fam = familyLabel(this.attractorsByDay.get(a.day)?.system);
+    if (fam) {
+      const meta = document.createElement('span');
+      meta.className = 'caption-meta';
+      meta.textContent = fam;
+      this.caption.append(document.createElement('br'), meta);
+    }
+    this.audioEl.pause();
+    if (a.audio) {
+      this.audioEl.src = a.audio;
+      this.listenBtn.textContent = '▶ Listen';
+      this.caption.append(document.createElement('br'), this.listenBtn);
+    }
     this.root.classList.remove('hidden');
     // preload neighbors
     for (const dir of [1, -1] as const) {
@@ -630,7 +678,7 @@ export class PieceView {
         this.orbit = null;
       }
     }
-    this.live_.hideImageBtn.style.display = this.liveAttractor ? 'block' : 'none';
+    this.live_.modeToggle.style.display = this.liveAttractor ? 'flex' : 'none';
     this.live_.brightnessSlider.style.display = this.liveAttractor ? 'block' : 'none';
     // The piece backdrop (Phase 1) is a full-viewport pointer-events:auto element that sits on top
     // of the #gl canvas the whole time the piece is open (it needs to catch clicks on empty space
@@ -643,13 +691,14 @@ export class PieceView {
   }
 
   close(): void {
+    this.audioEl.pause();
     this.liveAttractor?.dispose();
     this.liveAttractor = null;
     this.orbit = null;
     this.disturbHeld = false;
     this.disturbAmount = 0;
     this.live_.controls.setEnabled(true);
-    this.live_.hideImageBtn.style.display = 'none';
+    this.live_.modeToggle.style.display = 'none';
     this.live_.brightnessSlider.style.display = 'none';
     this.root.classList.remove('live-active');
     this.root.classList.add('hidden');
@@ -668,11 +717,11 @@ export class PieceView {
   // actually has a live cloud showing. A day can be static-only, degenerate (see
   // KNOWN_DEGENERATE_DAYS above), or mid-construction-failure even when this is true, so callers
   // that need "is a live attractor showing right now" should check `this.liveAttractor` (e.g. the
-  // hide-image button's visibility below), not this accessor.
+  // Image|Orbit mode toggle's visibility below), not this accessor.
   hasLiveSupport(): boolean { return this.tier !== null; }
 
-  // Returns the new state so callers (main.ts's hide-image button) can update their own label to
-  // reflect it rather than showing the same text regardless of which action clicking will perform.
+  // Returns the new state so callers (main.ts's Image|Orbit mode toggle) can update their own label
+  // to reflect it rather than showing the same text regardless of which action clicking will perform.
   toggleHideStatic(): boolean { return this.root.classList.toggle('hide-static'); }
 
   // Hide-static persists across day navigation and close/reopen (neither open() nor close() resets

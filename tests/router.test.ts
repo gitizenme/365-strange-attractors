@@ -7,15 +7,23 @@ describe('parseRoute', () => {
     expect(parseRoute('/')).toEqual({ kind: 'home' });
     expect(parseRoute('/day/042-spirality/')).toEqual({ kind: 'day', slug: '042-spirality' });
     expect(parseRoute('/day/042-spirality')).toEqual({ kind: 'day', slug: '042-spirality' });
-    expect(parseRoute('/index/')).toEqual({ kind: 'index' });
-    expect(parseRoute('/about/')).toEqual({ kind: 'about' });
-    expect(parseRoute('/music/')).toEqual({ kind: 'music' });
+    expect(parseRoute('/today/')).toEqual({ kind: 'today' });
+    expect(parseRoute('/attractors/')).toEqual({ kind: 'attractors' });
+    expect(parseRoute('/sound/')).toEqual({ kind: 'sound' });
+    expect(parseRoute('/story/')).toEqual({ kind: 'story' });
     expect(parseRoute('/nonsense')).toEqual({ kind: 'home' });
   });
-  it('round-trips through routePath', () => {
+  it('maps legacy paths onto the new kinds', () => {
+    expect(parseRoute('/index/')).toEqual({ kind: 'attractors' });
+    expect(parseRoute('/music/')).toEqual({ kind: 'sound' });
+    expect(parseRoute('/about/')).toEqual({ kind: 'story' });
+  });
+  it('round-trips through routePath onto canonical paths', () => {
     expect(routePath({ kind: 'day', slug: '001-rose' })).toBe('/day/001-rose/');
-    expect(parseRoute(routePath({ kind: 'index' }))).toEqual({ kind: 'index' });
-    expect(parseRoute(routePath({ kind: 'music' }))).toEqual({ kind: 'music' });
+    expect(routePath({ kind: 'today' })).toBe('/today/');
+    expect(parseRoute(routePath({ kind: 'attractors' }))).toEqual({ kind: 'attractors' });
+    expect(parseRoute(routePath({ kind: 'sound' }))).toEqual({ kind: 'sound' });
+    expect(parseRoute(routePath({ kind: 'story' }))).toEqual({ kind: 'story' });
   });
 });
 

@@ -28,3 +28,12 @@ describe('renderPiecePage', () => {
     expect(renderPiecePage({ ...art, title: 'A<B&C' })).toContain('A&lt;B&amp;C');
   });
 });
+
+describe('renderPiecePage crawler nav', () => {
+  const html = renderPiecePage({ day: 1, title: 'Rose', slug: '001-rose' });
+  it('links the four destinations', () => {
+    for (const p of ['/today/', '/attractors/', '/sound/', '/story/']) {
+      expect(html).toContain(`href="${p}"`);
+    }
+  });
+});
