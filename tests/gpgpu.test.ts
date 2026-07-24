@@ -71,3 +71,49 @@ describe('fillSeedTexture', () => {
     expect(nearOrigin + nearFar).toBe(200);
   });
 });
+
+import { computeShader, type AttractorFamily } from '../src/attractor/gpgpu';
+
+describe('computeShader scaffold (phase 2b)', () => {
+  const fixed: AttractorFamily = {
+    system: 't', paramCount: 4, isDiscreteMap: true, disturbIndices: [0],
+    glslStep: `vec3 stepAttractor(vec3 p, float params[4]) { return p; }`,
+  };
+  it('declares uFrame, cgUv and cgRand for every family', () => {
+    const src = computeShader(fixed, 4);
+    expect(src).toContain('uniform float uFrame;');
+    expect(src).toContain('vec2 cgUv;');
+    expect(src).toContain('float cgRand(');
+    expect(src).toContain('cgUv = uv;');
+  });
+  it('sizes uniform arrays from the passed count and substitutes __N__', () => {
+    const variable: AttractorFamily = {
+      system: 'v', paramCount: 'variable', isDiscreteMap: true,
+      disturbStride: { stride: 13, offsets: [9, 10, 11] },
+      glslStep: `vec3 stepAttractor(vec3 p, float params[__N__]) { return p; }`,
+    };
+    const src = computeShader(variable, 26);
+    expect(src).toContain('uniform float uParamsA[26];');
+    expect(src).toContain('float params[26]');
+    expect(src).not.toContain('__N__');
+  });
+  it('generates stride-repeated disturb lines', () => {
+    const variable: AttractorFamily = {
+      system: 'v', paramCount: 'variable', isDiscreteMap: true,
+      disturbStride: { stride: 13, offsets: [9] },
+      glslStep: `vec3 stepAttractor(vec3 p, float params[__N__]) { return p; }`,
+    };
+    const src = computeShader(variable, 26);
+    expect(src).toContain('params[9] +=');
+    expect(src).toContain('params[22] +=');
+  });
+  it('emits vec4 state handling when stateW is set', () => {
+    const w: AttractorFamily = {
+      system: 'w', paramCount: 4, isDiscreteMap: true, stateW: true,
+      glslStep: `vec4 stepAttractor(vec4 p, float params[4]) { return p; }`,
+    };
+    const src = computeShader(w, 4);
+    expect(src).toContain('vec4 next4 = stepAttractor');
+    expect(src).toContain('gl_FragColor = vec4(next, next4.w);');
+  });
+});

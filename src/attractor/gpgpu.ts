@@ -4,13 +4,19 @@ import type { Tier } from './tiers';
 
 export interface AttractorFamily {
   system: string;
-  paramCount: number;
-  /** GLSL function body: `vec3 stepAttractor(vec3 p, float params[N])` — N is substituted from paramCount. */
+  /** Fixed param count, or 'variable' — the instance's params.length is used and `__N__` in glslStep is substituted with it. */
+  paramCount: number | 'variable';
+  /** GLSL function body: `vec3 stepAttractor(vec3 p, float params[N])` — or vec4-in/vec4-out when stateW is true.
+   * May use the scaffold's `cgUv` (this particle's uv), `uFrame` uniform, and `cgRand(vec2, float)`. */
   glslStep: string;
-  /** true for discrete maps (pickover, polynomial_*); false for ODEs integrated with a trailing dt param (lorenz, lorenz_84). */
+  /** true for discrete maps (pickover, polynomial_*, and all phase-2b families); false for ODEs integrated with a trailing dt param. */
   isDiscreteMap: boolean;
-  /** indices into params[] that the disturb gesture perturbs. */
-  disturbIndices: number[];
+  /** indices into params[] that the disturb gesture perturbs (fixed-count families). */
+  disturbIndices?: number[];
+  /** stride-repeated disturb targets for variable-count families: every block of `stride` params gets `offsets` perturbed. */
+  disturbStride?: { stride: number; offsets: number[] };
+  /** step signature is vec4→vec4 and the texture's alpha channel persists the 4th state component (julia's quaternion k). */
+  stateW?: boolean;
 }
 
 const RENDER_VERTEX = /* glsl */ `
@@ -42,30 +48,54 @@ void main() {
   gl_FragColor = vec4(vColor * uBrightness, (1.0 - d * 2.0) * uAlpha * uCalibration);
 }`;
 
-function computeShader(family: AttractorFamily): string {
+const DISTURB_LINE = (i: number) =>
+  `params[${i}] += uPerturbation * (0.15 * sin(dot(uv, vec2(12.9898, 78.233)) * 43758.5453 + float(${i})));`;
+
+export function computeShader(family: AttractorFamily, paramCount: number): string {
+  let disturbLines: string[];
+  if (family.disturbStride) {
+    const { stride, offsets } = family.disturbStride;
+    disturbLines = [];
+    for (let b = 0; b * stride < paramCount; b++) {
+      for (const o of offsets) disturbLines.push(DISTURB_LINE(b * stride + o));
+    }
+  } else {
+    disturbLines = (family.disturbIndices ?? []).map(DISTURB_LINE);
+  }
+  const step = family.glslStep.replaceAll('__N__', String(paramCount));
+  const w = family.stateW === true;
   return /* glsl */ `
-    uniform float uParamsA[${family.paramCount}];
-    uniform float uParamsB[${family.paramCount}];
+    uniform float uParamsA[${paramCount}];
+    uniform float uParamsB[${paramCount}];
     uniform float uMorphMix;
     uniform float uPerturbation;
-    ${family.glslStep}
+    uniform float uFrame;
+    vec2 cgUv;
+    float cgRand(vec2 uv, float n) {
+      return fract(sin(dot(vec3(uv, n), vec3(12.9898, 78.233, 37.719))) * 43758.5453);
+    }
+    ${step}
     void main() {
       vec2 uv = gl_FragCoord.xy / resolution.xy;
-      vec3 p = texture2D(texturePosition, uv).xyz;
-      float params[${family.paramCount}];
-      for (int i = 0; i < ${family.paramCount}; i++) {
+      cgUv = uv;
+      vec4 tex = texture2D(texturePosition, uv);
+      ${w ? 'vec4 p = tex;' : 'vec3 p = tex.xyz;'}
+      float params[${paramCount}];
+      for (int i = 0; i < ${paramCount}; i++) {
         params[i] = mix(uParamsA[i], uParamsB[i], uMorphMix);
       }
-      ${family.disturbIndices.map(i => `params[${i}] += uPerturbation * (0.15 * sin(dot(uv, vec2(12.9898, 78.233)) * 43758.5453 + float(${i})));`).join('\n      ')}
-      vec3 next = stepAttractor(p, params);
+      ${disturbLines.join('\n      ')}
+      ${w ? 'vec4 next4 = stepAttractor(p, params);\n      vec3 next = next4.xyz;' : 'vec3 next = stepAttractor(p, params);'}
       if (!(next.x == next.x) || !(next.y == next.y) || !(next.z == next.z) ||
+          ${w ? '!(next4.w == next4.w) ||' : ''}
           abs(next.x) > 1.0e4 || abs(next.y) > 1.0e4 || abs(next.z) > 1.0e4) {
         float rx = fract(sin(dot(uv, vec2(12.9898, 78.233))) * 43758.5453) - 0.5;
         float ry = fract(sin(dot(uv, vec2(93.9898, 67.345))) * 24634.6345) - 0.5;
         float rz = fract(sin(dot(uv, vec2(41.2398, 289.123))) * 12345.6789) - 0.5;
-        next = vec3(rx, ry, rz);
+        gl_FragColor = vec4(rx, ry, rz, ${w ? '0.0' : '1.0'});
+        return;
       }
-      gl_FragColor = vec4(next, 1.0);
+      gl_FragColor = ${w ? 'vec4(next, next4.w)' : 'vec4(next, 1.0)'};
     }
   `;
 }
@@ -128,17 +158,25 @@ export class LiveAttractor {
     const initial = this.gpuCompute.createTexture();
     const data = initial.image.data as Float32Array;
     fillSeedTexture(data, seed);
-    this.positionVariable = this.gpuCompute.addVariable('texturePosition', computeShader(family), initial);
+    const paramCount = family.paramCount === 'variable' ? params.length : family.paramCount;
+    this.positionVariable = this.gpuCompute.addVariable('texturePosition', computeShader(family, paramCount), initial);
     this.gpuCompute.setVariableDependencies(this.positionVariable, [this.positionVariable]);
     this.positionVariable.material.uniforms.uParamsA = { value: params.slice() };
     this.positionVariable.material.uniforms.uParamsB = { value: params.slice() };
     this.positionVariable.material.uniforms.uMorphMix = { value: 0 };
     this.positionVariable.material.uniforms.uPerturbation = { value: 0 };
+    this.positionVariable.material.uniforms.uFrame = { value: 0 };
     const error = this.gpuCompute.init();
     if (error !== null) throw new Error(`GPUComputationRenderer init failed: ${error}`);
 
-    // settling burst: iterate several times before first visible frame
-    for (let i = 0; i < 150; i++) this.gpuCompute.compute();
+    // settling burst: iterate several times before first visible frame. uFrame MUST advance each
+    // iteration — chaos-game families draw their per-step transform choice from it, and a frozen
+    // uFrame would make every particle apply the same transform 150 times in a row, collapsing
+    // the whole cloud onto the n transform fixed points.
+    for (let i = 0; i < 150; i++) {
+      this.positionVariable.material.uniforms.uFrame.value = i;
+      this.gpuCompute.compute();
+    }
 
     const n = tier * tier;
     // tier 256 (true mobile — phones, where the UA sniff in piece.ts actually fires) gets a much
@@ -279,6 +317,8 @@ export class LiveAttractor {
   }
 
   compute(): void {
+    const u = this.positionVariable.material.uniforms.uFrame;
+    u.value = (u.value + 1) % 1048576;
     this.gpuCompute.compute();
     this.material.uniforms.uPosition.value = this.gpuCompute.getCurrentRenderTarget(this.positionVariable).texture;
   }
