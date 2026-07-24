@@ -342,6 +342,23 @@ export function estimateIfsDisplay(fileParams: number[]): { scale: number; cente
   return sampleSettledTrajectory(step, s, 200, 4000);
 }
 
+// Icon: mirrors icon.ts's glslStep (see its header for the formula). The map lives in the
+// x/y plane with |p| as height, so the trajectory is genuinely 3D for display purposes.
+export function estimateIconDisplay(params: number[]): { scale: number; centerX: number; centerY: number; centerZ: number; seed: SeedSpec } {
+  const d = Math.round(params[0]);
+  const [, alpha, beta, lambda, gamma, omega] = params;
+  const s = { x: 0.1, y: 0.1, z: 0 };
+  const step = () => {
+    let rx = 1, ry = 0;
+    for (let i = 0; i < d; i++) { const t = rx * s.x - ry * s.y; ry = rx * s.y + ry * s.x; rx = t; }
+    const pp = lambda + alpha * (s.x * s.x + s.y * s.y) + beta * (s.x * rx - s.y * ry);
+    const nx = pp * s.x + gamma * rx - omega * s.y;
+    const ny = pp * s.y - gamma * ry + omega * s.x;
+    s.x = nx; s.y = ny; s.z = Math.abs(pp);
+  };
+  return sampleSettledTrajectory(step, s, 500, 4000);
+}
+
 // One entry point for "how should this family's live cloud be scaled/positioned/seeded," instead
 // of open() re-deriving it via a chain of `attractor.system === X ? estimateX(...) : null` calls
 // followed by two parallel scale/centerZ ternaries walking the same chain again (the shape that
@@ -377,6 +394,7 @@ const DISPLAY_ESTIMATORS: Record<string, (params: number[]) => DisplayResult> = 
   polynomial_a: estimatePolynomialADisplay,
   polynomial_b: estimatePolynomialBDisplay,
   ifs: estimateIfsDisplay,
+  icon: estimateIconDisplay,
   // Every other in-scope family falls through to open()'s { scale: 1, centerZ: 0, seed: undefined }
   // default.
 };
