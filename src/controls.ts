@@ -60,6 +60,8 @@ export class Controls {
   private ac = new AbortController();
   private enabled = true;
   private userMoved = false;
+  private flightId = 0;
+  private cancellableFlight = false;
 
   constructor(private canvas: HTMLCanvasElement, private camera: THREE.PerspectiveCamera,
               private bounds: Bounds, opts: { reducedMotion?: boolean } = {}) {
@@ -67,6 +69,7 @@ export class Controls {
     const s = this.ac.signal;
     canvas.addEventListener('pointerdown', e => {
       if (!this.enabled) return;
+      this.cancelFlight();
       canvas.setPointerCapture(e.pointerId);
       this.dragging = true; this.moved = 0; this.vel = { x: 0, y: 0 };
       this.last = { x: e.clientX, y: e.clientY };
@@ -92,6 +95,7 @@ export class Controls {
     canvas.addEventListener('wheel', e => {
       if (!this.enabled) return;
       e.preventDefault();
+      this.cancelFlight();
       if (this.flying) return;
       this.userMoved = true;
       const factor = Math.exp(e.deltaY * 0.0015);
@@ -130,21 +134,35 @@ export class Controls {
     }
   }
 
-  flyTo(x: number, y: number, z: number, durationSec: number): Promise<void> {
+  // `cancellable` flights (the home-arrival settle) end instantly on any pan/zoom — the visitor
+  // always wins. Non-cancellable flights (day-open, minimap jumps) behave exactly as before:
+  // the router awaits them and input stays deferred until they land.
+  flyTo(x: number, y: number, z: number, durationSec: number, opts: { cancellable?: boolean } = {}): Promise<void> {
     if (this.reduced) durationSec = 0;
     this.flying = true;
+    this.cancellableFlight = opts.cancellable ?? false;
+    const id = ++this.flightId;
     const from = { ...this.camera.position };
     const t0 = performance.now();
     return new Promise(resolve => {
       const step = () => {
+        if (this.flightId !== id) { resolve(); return; } // cancelled (or superseded) mid-flight
         const t = durationSec === 0 ? 1 : Math.min(1, (performance.now() - t0) / (durationSec * 1000));
         const k = ease(t);
         this.camera.position.set(from.x + (x - from.x) * k, from.y + (y - from.y) * k, from.z + (z - from.z) * k);
         if (t < 1) requestAnimationFrame(step);
-        else { this.flying = false; resolve(); }
+        else { this.flying = false; this.cancellableFlight = false; resolve(); }
       };
       step();
     });
+  }
+
+  cancelFlight(): void {
+    if (this.flying && this.cancellableFlight) {
+      this.flying = false;
+      this.cancellableFlight = false;
+      this.flightId++;
+    }
   }
 
   dispose(): void { this.ac.abort(); }

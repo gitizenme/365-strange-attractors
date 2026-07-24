@@ -12,7 +12,7 @@ import { MusicView } from './musicview';
 import { loadMusicData } from './musicdata';
 import { StoryView } from './storyview';
 import { Nav } from './nav';
-import { resolveToday } from './today';
+import { resolveToday, settleCamera, todayCaption } from './today';
 
 async function boot() {
   // music.json is a supplementary, link-out showcase, unlike artworks/atlas/attractors (which the
@@ -83,15 +83,34 @@ async function boot() {
 
   const minimap = new Minimap(overlay, artworks, (x, y) => controls.flyTo(x, y, con.camera.position.z, 0.6));
 
+  // The arrival: today's piece is the daily focal point. The sprite glows from boot; once the
+  // small atlas tier is visible the camera makes one eased flight to it (home route only, and
+  // only if the visitor hasn't already taken over). Reduced-motion visitors get instant framing
+  // via flyTo's own duration-0 path.
+  const todayArt = resolveToday(new Date(), artworks);
+  const todayIndex = artworks.findIndex(a => a.day === todayArt.day);
+  con.setHighlight(todayIndex);
+  const captionEl = document.createElement('div');
+  captionEl.id = 'today-caption';
+  const cap = todayCaption(todayArt);
+  const capSmall = document.createElement('small');
+  capSmall.textContent = cap.label;
+  const capTitle = document.createElement('span');
+  capTitle.textContent = cap.title;
+  captionEl.append(capSmall, capTitle);
   if (!localStorage.getItem('la-intro-seen')) {
-    const intro = document.createElement('div');
-    intro.id = 'intro-card';
-    intro.innerHTML = '<h1>365 Strange Attractors</h1><p>One attractor a day, 2010.<br>Drag to wander · scroll to dive · click to open.</p>';
-    overlay.appendChild(intro);
-    const dismiss = () => { intro.classList.add('gone'); localStorage.setItem('la-intro-seen', '1'); };
-    setTimeout(dismiss, 6000);
-    canvas.addEventListener('pointerdown', dismiss, { once: true });
+    const hints = document.createElement('p');
+    hints.className = 'today-hints';
+    hints.textContent = 'drag to wander · scroll to dive · click to open';
+    captionEl.appendChild(hints);
   }
+  overlay.appendChild(captionEl);
+  const dismissCaption = () => {
+    captionEl.classList.remove('visible');
+    localStorage.setItem('la-intro-seen', '1');
+  };
+  canvas.addEventListener('pointerdown', dismissCaption, { once: true });
+  canvas.addEventListener('wheel', dismissCaption, { once: true });
 
   const labels = new Labels(overlay, artworks);
   let hovered: number | null = null;
@@ -223,6 +242,16 @@ async function boot() {
   // Honor deep links AND canonicalize legacy URLs (/index/, /music/, /about/) onto the new
   // paths without adding a history entry.
   router.go(router.current(), { replace: true });
+
+  const arrive = async () => {
+    await con.atlasReady;
+    if (controls.hasUserMoved() || router.current().kind !== 'home') return;
+    const p = con.positionOf(todayIndex);
+    const s = settleCamera(p, con.camera.fov);
+    await controls.flyTo(s.x, s.y, s.z, 2.5, { cancellable: true });
+    captionEl.classList.add('visible');
+  };
+  if (router.current().kind === 'home') arrive();
 
   let lastT = 0;
   const loop = (t: number) => {
