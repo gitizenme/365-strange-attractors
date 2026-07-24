@@ -345,12 +345,14 @@ export function estimateIfsDisplay(fileParams: number[]): { scale: number; cente
 // Icon: mirrors icon.ts's glslStep (see its header for the formula). The map lives in the
 // x/y plane with |p| as height, so the trajectory is genuinely 3D for display purposes.
 export function estimateIconDisplay(params: number[]): { scale: number; centerX: number; centerY: number; centerZ: number; seed: SeedSpec } {
+  // r = z^(degree-1) — see src/attractor/families/icon.ts header for why Chaoscope's Degree is
+  // the symmetry order n, not the rotor exponent (which is n-1).
   const d = Math.round(params[0]);
   const [, alpha, beta, lambda, gamma, omega] = params;
   const s = { x: 0.1, y: 0.1, z: 0 };
   const step = () => {
     let rx = 1, ry = 0;
-    for (let i = 0; i < d; i++) { const t = rx * s.x - ry * s.y; ry = rx * s.y + ry * s.x; rx = t; }
+    for (let i = 0; i < d - 1; i++) { const t = rx * s.x - ry * s.y; ry = rx * s.y + ry * s.x; rx = t; }
     const pp = lambda + alpha * (s.x * s.x + s.y * s.y) + beta * (s.x * rx - s.y * ry);
     const nx = pp * s.x + gamma * rx - omega * s.y;
     const ny = pp * s.y - gamma * ry + omega * s.x;
