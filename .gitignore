@@ -8,3 +8,7 @@ __pycache__/
 *.pyc
 .DS_Store
 .claude/
+public/attractors/
+public/sound/
+public/story/
+public/today/

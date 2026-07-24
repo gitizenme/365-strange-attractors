@@ -1,6 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
 <url><loc>https://chaosofzen.dev/</loc></url>
+<url><loc>https://chaosofzen.dev/attractors/</loc></url>
+<url><loc>https://chaosofzen.dev/sound/</loc></url>
+<url><loc>https://chaosofzen.dev/story/</loc></url>
 <url><loc>https://chaosofzen.dev/day/001-rose/</loc></url>
 <url><loc>https://chaosofzen.dev/day/002-event-horizon/</loc></url>
 <url><loc>https://chaosofzen.dev/day/003-a-perfect-circle/</loc></url>
