@@ -34,8 +34,8 @@ view {\r
 }\r
 `;
 
-const UNSUPPORTED_ICON = `attractor {\r
-\ttype icon\r
+const OUT_OF_SCOPE_INCENDIA = `attractor {\r
+\ttype incendia_ifs\r
 \titerations 1000000\r
 \tparameters <1.5, -1.5>\r
 }\r
@@ -73,7 +73,7 @@ describe('parseCsproj', () => {
     expect(parseCsproj(MALFORMED)).toBeNull();
   });
   it('still parses a recognized-format file even for an out-of-scope family (classification happens later)', () => {
-    expect(parseCsproj(UNSUPPORTED_ICON)).toEqual({ type: 'icon', iterations: 1000000, params: [1.5, -1.5] });
+    expect(parseCsproj(OUT_OF_SCOPE_INCENDIA)).toEqual({ type: 'incendia_ifs', iterations: 1000000, params: [1.5, -1.5] });
   });
 });
 
@@ -91,17 +91,17 @@ describe('pickAttractorFile', () => {
 });
 
 describe('buildAttractors', () => {
-  const days = [{ day: 1, slug: '001-rose' }, { day: 2, slug: '002-icon-day' }, { day: 3, slug: '003-no-csproj' }];
+  const days = [{ day: 1, slug: '001-rose' }, { day: 2, slug: '002-incendia' }, { day: 3, slug: '003-no-csproj' }];
   const fakeFs = {
     readdirSync(dir) {
       if (dir.endsWith('001')) return ['001_Rose.csproj'];
-      if (dir.endsWith('002')) return ['002_Icon.csproj'];
+      if (dir.endsWith('002')) return ['002_Incendia.csproj'];
       if (dir.endsWith('003')) return ['003_Something.par'];
       throw new Error(`unexpected dir ${dir}`);
     },
     readFileSync(path) {
       if (path.endsWith('001_Rose.csproj')) return CHAOTIC_FLOW_001;
-      if (path.endsWith('002_Icon.csproj')) return UNSUPPORTED_ICON;
+      if (path.endsWith('002_Incendia.csproj')) return OUT_OF_SCOPE_INCENDIA;
       throw new Error(`unexpected file ${path}`);
     },
   };
@@ -110,7 +110,7 @@ describe('buildAttractors', () => {
     const result = buildAttractors(days, '/archive', fakeFs);
     expect(result).toEqual([
       { day: 1, slug: '001-rose', system: 'chaotic_flow', iterations: 80000000, params: CHAOTIC_FLOW_001 && [-0.368, 0, -0.695, 2, 0.305, 0, 0.924, 0.088, 2, -0.569, 0, -0.288, 3, 0.205, -0.234, 1, -0.717, 0, 0.812, 2, 0.928, 0.883] },
-      { day: 2, slug: '002-icon-day', system: 'icon', iterations: 1000000, params: [1.5, -1.5] },
+      { day: 2, slug: '002-incendia', system: 'static-only' },
       { day: 3, slug: '003-no-csproj', system: 'static-only' },
     ]);
   });
