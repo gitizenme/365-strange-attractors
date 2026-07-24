@@ -74,8 +74,9 @@ html, body { height: 100%; background: #06070a; color: #cfd3dc; font-family: Geo
   opacity: 1; transition: opacity 0.35s;
 }
 .piece-close .glyph { font-size: 18px; margin-right: 6px; vertical-align: -1px; }
-@media (max-width: 700px) { .piece-nav { position: absolute; bottom: 8px; } .piece-nav.prev { left: 20vw; } .piece-nav.next { right: 20vw; } }
+/* piece-nav position:relative must come before the media query so that mobile's position:absolute wins the cascade */
 .piece-nav { position: relative; }
+@media (max-width: 700px) { .piece-nav { position: absolute; bottom: 8px; } .piece-nav.prev { left: 20vw; } .piece-nav.next { right: 20vw; } }
 .piece-nav::after {
   content: attr(data-label); position: absolute; top: 100%; left: 50%; transform: translateX(-50%);
   font-size: 11px; letter-spacing: 0.12em; color: #9aa1b0; white-space: nowrap;
