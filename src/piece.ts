@@ -65,6 +65,7 @@ const FAMILY_LABELS: Record<string, string> = {
   lorenz: 'Lorenz', lorenz_84: 'Lorenz-84', icon: 'Field–Golubitsky icon', pickover: 'Pickover',
   chaotic_flow: 'Chaotic flow', polynomial_a: 'Polynomial A', polynomial_b: 'Polynomial B',
   polynomial_c: 'Polynomial C', polynomial_func: 'Polynomial', polynomial_sprott: 'Polynomial (Sprott)',
+  julia: 'Julia (quaternion)', ifs: 'IFS', unravel: 'Unravel',
 };
 export function familyLabel(system: string | undefined): string | null {
   if (!system) return null;
@@ -77,12 +78,31 @@ export function familyLabel(system: string | undefined): string | null {
 // family, either side static-only or unknown — falls back to the plain dissolve (open()'s
 // existing dispose/reconstruct cycle).
 export function transitionKind(
-  current: { day: number; system: string } | null,
-  next: { day: number; system: string } | null,
+  current: { day: number; system: string; params?: number[] } | null,
+  next: { day: number; system: string; params?: number[] } | null,
 ): 'morph' | 'dissolve' {
   if (!current || !next) return 'dissolve';
   if (current.system === 'static-only' || next.system === 'static-only') return 'dissolve';
-  return current.system === next.system ? 'morph' : 'dissolve';
+  if (current.system !== next.system) return 'dissolve';
+  // param-interpolation morphs need structurally compatible param lists: same length always
+  // (ifs matrix counts differ across days), and for icon the same integer degree (the degree
+  // drives a complex-power loop — a fractional mix of 3 and 5 is meaningless).
+  if (current.params && next.params) {
+    if (current.params.length !== next.params.length) return 'dissolve';
+    if (current.system === 'icon' && current.params[0] !== next.params[0]) return 'dissolve';
+  }
+  return 'morph';
+}
+
+// One canonical file-params → LiveAttractor-params mapping. ifs composes its 16-float file
+// blocks into the 13-float stride the GLSL consumes (weights normalized); polynomial_func pads
+// its 3 genuinely different raw lengths into the fixed 40-slot shape; everything else passes
+// through. Used by BOTH the open() construction path and the morph-target path — the two must
+// never disagree on shape.
+export function toLiveParams(system: string, params: number[]): number[] {
+  if (system === 'ifs') return composeIfsBlocks(params);
+  if (system === 'polynomial_func') return normalizeFuncParams(params);
+  return params;
 }
 
 // Both estimate*Display functions below need the same shape of work: mirror a family's glslStep
@@ -593,14 +613,17 @@ export class PieceView {
     const curAttr = this.attractorsByDay.get(this.current.day);
     const nextAttr = this.attractorsByDay.get(next.day);
     const kind = transitionKind(
-      curAttr ? { day: curAttr.day, system: curAttr.system } : null,
-      nextAttr ? { day: nextAttr.day, system: nextAttr.system } : null,
+      curAttr ? { day: curAttr.day, system: curAttr.system, params: curAttr.params } : null,
+      nextAttr ? { day: nextAttr.day, system: nextAttr.system, params: nextAttr.params } : null,
     );
     if (kind === 'morph' && this.liveAttractor && nextAttr?.params) {
       // Capture the live instance we're morphing so a stale rAF tick can never touch a
       // *different* (disposed-and-replaced) instance — see the guard inside step() below.
       const morphing = this.liveAttractor;
-      morphing.setMorphTarget(nextAttr.params, 0);
+      // morph target must go through the same file→live mapping as construction, or the
+      // uniform arrays would mix incompatible layouts mid-interpolation
+      const morphTargetParams = toLiveParams(nextAttr.system, nextAttr.params);
+      morphing.setMorphTarget(morphTargetParams, 0);
       const start = performance.now();
       const step = () => {
         // open()/close() may have already disposed this exact instance and swapped in a new
@@ -608,9 +631,9 @@ export class PieceView {
         // of the nav arrow. Bail rather than mutate a disposed GPUComputationRenderer.
         if (this.liveAttractor !== morphing) return;
         const t = Math.min(1, (performance.now() - start) / 800);
-        morphing.setMorphTarget(nextAttr.params!, t);
+        morphing.setMorphTarget(morphTargetParams, t);
         if (t < 1) requestAnimationFrame(step);
-        else { morphing.setParams(nextAttr.params!); morphing.setMorphTarget(null, 0); }
+        else { morphing.setParams(morphTargetParams); morphing.setMorphTarget(null, 0); }
       };
       requestAnimationFrame(step);
     }
@@ -691,7 +714,7 @@ export class PieceView {
         // AttractorFamily/LiveAttractor need one fixed-size params array matching paramCount.
         // normalizeFuncParams pads/tags the raw params into that fixed 40-slot shape; every
         // other family passes its raw params through unchanged.
-        const liveParams = attractor.system === 'polynomial_func' ? normalizeFuncParams(attractor.params) : attractor.params;
+        const liveParams = toLiveParams(attractor.system, attractor.params);
         const tint = pickTintColor(a.palette);
         this.liveAttractor = new LiveAttractor(this.live_.renderer, family, liveParams, this.tier, liveSeed, tint);
         // LiveAttractor's own settling burst (Task 3, fixed at 150 steps) integrates only
