@@ -3,11 +3,14 @@ import { renderSitemap } from '../pipeline/sitemap.mjs';
 
 describe('renderSitemap', () => {
   const xml = renderSitemap([{ slug: '001-rose' }, { slug: '002-event-horizon' }]);
-  it('lists root plus every day, absolute', () => {
+  it('lists root, the three veil routes, and every day, absolute', () => {
     expect(xml).toContain('<loc>https://chaosofzen.dev/</loc>');
+    expect(xml).toContain('<loc>https://chaosofzen.dev/attractors/</loc>');
+    expect(xml).toContain('<loc>https://chaosofzen.dev/sound/</loc>');
+    expect(xml).toContain('<loc>https://chaosofzen.dev/story/</loc>');
     expect(xml).toContain('<loc>https://chaosofzen.dev/day/001-rose/</loc>');
     expect(xml).toContain('<loc>https://chaosofzen.dev/day/002-event-horizon/</loc>');
-    expect(xml.match(/<url>/g)).toHaveLength(3);
+    expect(xml.match(/<url>/g)).toHaveLength(6);
   });
   it('is a urlset document with xml declaration', () => {
     expect(xml.startsWith('<?xml version="1.0" encoding="UTF-8"?>')).toBe(true);
