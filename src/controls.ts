@@ -137,7 +137,10 @@ export class Controls {
   // `cancellable` flights (the home-arrival settle) end instantly on any pan/zoom — the visitor
   // always wins. Non-cancellable flights (day-open, minimap jumps) behave exactly as before:
   // the router awaits them and input stays deferred until they land.
-  flyTo(x: number, y: number, z: number, durationSec: number, opts: { cancellable?: boolean } = {}): Promise<void> {
+  // Resolves `true` only when the flight actually LANDED on its target; `false` when it was
+  // cancelled or superseded — callers gating follow-up UI (the arrival caption) on the outcome
+  // must not treat a mere resolution as arrival.
+  flyTo(x: number, y: number, z: number, durationSec: number, opts: { cancellable?: boolean } = {}): Promise<boolean> {
     if (this.reduced) durationSec = 0;
     this.flying = true;
     this.cancellableFlight = opts.cancellable ?? false;
@@ -146,7 +149,7 @@ export class Controls {
     const t0 = performance.now();
     return new Promise(resolve => {
       const step = () => {
-        if (this.flightId !== id) { resolve(); return; } // cancelled (or superseded) mid-flight
+        if (this.flightId !== id) { resolve(false); return; } // cancelled (or superseded) mid-flight
         const t = durationSec === 0 ? 1 : Math.min(1, (performance.now() - t0) / (durationSec * 1000));
         if (t < 1) {
           const k = ease(t);
@@ -157,7 +160,7 @@ export class Controls {
           // re-derives the target THROUGH `from`, so a non-finite starting position (e.g. a camera
           // poisoned by a pre-layout NaN aspect) would otherwise survive the whole flight.
           this.camera.position.set(x, y, z);
-          this.flying = false; this.cancellableFlight = false; resolve();
+          this.flying = false; this.cancellableFlight = false; resolve(true);
         }
       };
       step();

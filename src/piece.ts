@@ -452,7 +452,12 @@ export class PieceView {
     this.listenBtn = document.createElement('button');
     this.listenBtn.className = 'piece-listen';
     this.listenBtn.addEventListener('click', () => {
-      if (this.audioEl.paused) { this.audioEl.play(); this.listenBtn.textContent = '❚❚ Pause'; }
+      if (this.audioEl.paused) {
+        // play() rejects on autoplay policy or a failed source — reset the label instead of
+        // showing a "Pause" button over silence
+        this.audioEl.play().catch(() => { this.listenBtn.textContent = '▶ Listen'; });
+        this.listenBtn.textContent = '❚❚ Pause';
+      }
       else { this.audioEl.pause(); this.listenBtn.textContent = '▶ Listen'; }
     });
     this.audioEl.addEventListener('ended', () => { this.listenBtn.textContent = '▶ Listen'; });
@@ -604,6 +609,10 @@ export class PieceView {
       this.audioEl.src = a.audio;
       this.listenBtn.textContent = '▶ Listen';
       this.caption.append(document.createElement('br'), this.listenBtn);
+    } else {
+      // drop the previous day's source so navigating audio → non-audio doesn't keep a stale
+      // stream reference alive (the button itself is already gone with the caption rebuild)
+      this.audioEl.removeAttribute('src');
     }
     this.root.classList.remove('hidden');
     // preload neighbors

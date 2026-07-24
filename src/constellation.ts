@@ -46,7 +46,9 @@ void main() {
   vec2 drift = uDrift * 0.12 * vec2(sin(uTime * 0.11 + base.y * 0.7), cos(uTime * 0.13 + base.x * 0.7));
   vec3 world = vec3(base + drift + position.xy * uSize * aScale, 0.0);
   vUv = vec2(aUv.x + uv.x * aUv.z, aUv.y + uv.y * aUv.w);
-  vGlow = aGlow * (0.7 + 0.3 * sin(uTime * 2.2));
+  // Pulse amplitude rides uDrift so prefers-reduced-motion (uDrift = 0) gets a STEADY glow
+  // instead of an animated one -- the highlight survives, the motion doesn't.
+  vGlow = aGlow * (0.7 + 0.3 * uDrift * sin(uTime * 2.2));
   gl_Position = projectionMatrix * modelViewMatrix * vec4(world, 1.0);
 }`;
 

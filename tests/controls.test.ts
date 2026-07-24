@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { stepInertia, clampCamera, zoomToward, fitCamera } from '../src/controls';
+import { stepInertia, clampCamera, zoomToward, fitCamera, Controls } from '../src/controls';
 
 describe('stepInertia', () => {
   it('decays velocity exponentially and snaps to zero', () => {
@@ -75,5 +75,43 @@ describe('fitCamera', () => {
     expect(Number.isFinite(fit.z)).toBe(true);
     expect(fit.x).toBe(5);
     expect(fit.y).toBe(5);
+  });
+});
+
+describe('Controls.flyTo landed outcome', () => {
+  // Minimal DOM/camera stubs: Controls only calls addEventListener on the canvas in its
+  // constructor, and reads/writes camera.position. No rendering involved.
+  const stubCanvas = () => ({ addEventListener() {}, setPointerCapture() {}, clientWidth: 800, clientHeight: 450 });
+  const stubCamera = () => ({
+    position: { x: 0, y: 0, z: 100, set(x: number, y: number, z: number) { this.x = x; this.y = y; this.z = z; } },
+    fov: 50,
+  });
+  const bounds = { minX: -60, maxX: 60, minY: -60, maxY: 60 };
+
+  it('resolves true when a duration-0 flight lands, camera exactly on target', async () => {
+    const cam = stubCamera();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const c = new Controls(stubCanvas() as any, cam as any, bounds);
+    const landed = await c.flyTo(3, -2, 11.4, 0);
+    expect(landed).toBe(true);
+    expect({ x: cam.position.x, y: cam.position.y, z: cam.position.z }).toEqual({ x: 3, y: -2, z: 11.4 });
+  });
+
+  it('resolves false when a cancellable flight is cancelled mid-flight', async () => {
+    let pending: (() => void) | null = null;
+    const realRaf = globalThis.requestAnimationFrame;
+    // capture the tween's next step instead of scheduling it
+    (globalThis as { requestAnimationFrame: unknown }).requestAnimationFrame = (cb: () => void) => { pending = cb; return 0; };
+    try {
+      const cam = stubCamera();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const c = new Controls(stubCanvas() as any, cam as any, bounds);
+      const flight = c.flyTo(3, -2, 11.4, 5, { cancellable: true });
+      c.cancelFlight();
+      pending!(); // drive the captured tween step; it must observe the cancellation
+      await expect(flight).resolves.toBe(false);
+    } finally {
+      (globalThis as { requestAnimationFrame: unknown }).requestAnimationFrame = realRaf;
+    }
   });
 });

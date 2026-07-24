@@ -44,6 +44,11 @@ async function boot() {
   // the visitor's first pan/zoom -- Controls.hasUserMoved() flips permanently on the first drag
   // or wheel event, after which their own framing choice is never overridden from under them.
   let timeMode = false;
+  // Flips once any camera flight has taken over (arrival settle or a deep-link day flight) so
+  // the layout-wait retry below can't clobber a settled camera if layout arrives late (hidden
+  // embed revealed after boot). Deliberately NOT checked in applyFraming itself — explicit
+  // calls (layout toggle, resize) should still re-fit.
+  let flightTookOver = false;
   const applyFraming = () => {
     const w = canvas.clientWidth, h = canvas.clientHeight;
     // A canvas that hasn't been laid out yet measures 0x0 — dividing gives an aspect of
@@ -53,10 +58,15 @@ async function boot() {
     // Retry on the next frame until layout exists, and re-run con.resize() then so the
     // renderer size and camera aspect (set from the same 0x0 measurement in the
     // constructor) heal together.
-    if (!w || !h) { if (!controls.hasUserMoved()) requestAnimationFrame(applyFraming); return; }
+    if (!w || !h) { requestAnimationFrame(retryFraming); return; }
     con.resize();
     const fit = fitCamera(computeCloudBounds(artworks, timeMode ? 'date' : 'likeness'), w / h, con.camera.fov, 0.85);
     con.camera.position.set(fit.x, fit.y, fit.z);
+  };
+  // Checked at FIRE time, not schedule time — the takeover may happen between the two.
+  const retryFraming = () => {
+    if (controls.hasUserMoved() || flightTookOver) return; // camera has an owner now
+    applyFraming();
   };
   applyFraming();
   addEventListener('resize', () => { con.resize(); if (!controls.hasUserMoved()) applyFraming(); });
@@ -241,6 +251,7 @@ async function boot() {
       const i = bySlug.get(r.slug)!;
       const p = con.positionOf(i);
       await controls.flyTo(p.x, p.y, 8, 0.9);
+      flightTookOver = true; // deep-link day flight owns the camera; layout-wait retry must not re-frame
       piece.open(r.slug);
       syncModeToggle();
     } else {
@@ -264,11 +275,13 @@ async function boot() {
     if (controls.hasUserMoved() || router.current().kind !== 'home') return;
     const p = con.positionOf(todayIndex);
     const s = settleCamera(p, con.camera.fov);
-    await controls.flyTo(s.x, s.y, s.z, 2.5, { cancellable: true });
-    // flyTo's promise also resolves on cancellation/supersession — re-check that the visitor
-    // hasn't taken over (drag/wheel mid-settle) and we're still home before revealing the
-    // caption, otherwise it fades in over wherever they panned ("the visitor always wins").
-    if (controls.hasUserMoved() || router.current().kind !== 'home') return;
+    const landed = await controls.flyTo(s.x, s.y, s.z, 2.5, { cancellable: true });
+    flightTookOver = true; // landed or not, the layout-wait retry must not re-frame now
+    // Only a flight that actually LANDED earns the caption: a cancelled/superseded one
+    // (drag, wheel, minimap click, or a tap on empty canvas mid-settle) leaves the camera
+    // somewhere else, and the caption would fade in over the wrong view ("the visitor
+    // always wins"). The route re-check covers navigation during the flight.
+    if (!landed || controls.hasUserMoved() || router.current().kind !== 'home') return;
     captionEl.classList.add('visible');
   };
   if (router.current().kind === 'home') arrive();

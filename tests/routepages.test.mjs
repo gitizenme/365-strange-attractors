@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { renderRoutePage, ROUTE_PAGES } from '../pipeline/routepages.mjs';
+import { renderRoutePage, render404Page, ROUTE_PAGES } from '../pipeline/routepages.mjs';
 
 describe('ROUTE_PAGES', () => {
   it('covers the three veil destinations plus the /today/ shell', () => {
@@ -19,6 +19,21 @@ describe('renderRoutePage', () => {
     for (const p of ['/today/', '/attractors/', '/sound/', '/story/']) {
       expect(html).toContain(`href="${p}"`);
     }
+  });
+});
+
+describe('render404Page', () => {
+  const html = render404Page();
+  it('is a noindexed app shell so unknown paths (incl. legacy /index/, /music/) boot the app', () => {
+    expect(html).toContain('<canvas id="gl">');
+    expect(html).toContain('/assets/app.js');
+    expect(html).toContain('<meta name="robots" content="noindex" />');
+    for (const p of ['/today/', '/attractors/', '/sound/', '/story/']) {
+      expect(html).toContain(`href="${p}"`);
+    }
+  });
+  it('carries no canonical link — a 404 shell is not a canonical anything', () => {
+    expect(html).not.toContain('rel="canonical"');
   });
 });
 

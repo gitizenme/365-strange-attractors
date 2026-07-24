@@ -56,13 +56,14 @@ for (const a of artworks) {
 }
 console.log(`pages: ${artworks.length} written`);
 
-import { renderRoutePage, ROUTE_PAGES } from './routepages.mjs';
+import { renderRoutePage, render404Page, ROUTE_PAGES } from './routepages.mjs';
 for (const rp of ROUTE_PAGES) {
   const dir = join(OUT, rp.path.replaceAll('/', ''));
   mkdirSync(dir, { recursive: true });
   writeFileSync(join(dir, 'index.html'), renderRoutePage(rp));
 }
-console.log(`route pages: ${ROUTE_PAGES.length} written`);
+writeFileSync(join(OUT, '404.html'), render404Page());
+console.log(`route pages: ${ROUTE_PAGES.length} written + 404 shell`);
 
 const attractors = buildAttractors(days, ARCHIVE, { readdirSync, readFileSync });
 writeFileSync(join(OUT, 'data', 'attractors.json'), JSON.stringify(attractors));
