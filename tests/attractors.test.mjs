@@ -35,8 +35,8 @@ view {\r
 `;
 
 // a .csproj-format block with a family name that is deliberately not, and will never be, in
-// IN_SCOPE_FAMILIES (incendia_ifs is a real family since phase 2c, but sourced from .par, not
-// .csproj — this fixture just needs a name guaranteed to stay unrecognized).
+// IN_SCOPE_FAMILIES (incendia_ifs and incendia_flow are real families since phase 2c / incendia-flow,
+// but sourced from .par, not .csproj — this fixture just needs a name guaranteed to stay unrecognized).
 const OUT_OF_SCOPE_TYPE = `attractor {\r
 \ttype made_up_family\r
 \titerations 1000000\r
@@ -52,7 +52,7 @@ const MALFORMED = `attractor {\r
 describe('IN_SCOPE_FAMILIES', () => {
   it('has the expected family names', () => {
     expect([...IN_SCOPE_FAMILIES].sort()).toEqual([
-      'chaotic_flow', 'icon', 'ifs', 'incendia_ifs', 'julia', 'lorenz', 'lorenz_84', 'pickover',
+      'chaotic_flow', 'icon', 'ifs', 'incendia_flow', 'incendia_ifs', 'julia', 'lorenz', 'lorenz_84', 'pickover',
       'polynomial_a', 'polynomial_b', 'polynomial_c', 'polynomial_func', 'polynomial_sprott', 'unravel',
     ].sort());
   });

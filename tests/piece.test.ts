@@ -29,6 +29,10 @@ describe('familyLabel', () => {
     expect(familyLabel('mystery_family')).toBeNull();
     expect(familyLabel(undefined)).toBeNull();
   });
+  it('labels incendia_ifs and incendia_flow (phase 2c/incendia-flow)', () => {
+    expect(familyLabel('incendia_ifs')).toBe('Incendia IFS');
+    expect(familyLabel('incendia_flow')).toBe('Incendia flow');
+  });
 });
 
 it('toLiveParams composes ifs blocks, normalizes polynomial_func, passes others through', () => {

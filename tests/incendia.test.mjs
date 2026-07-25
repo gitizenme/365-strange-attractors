@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   parsePar, composeIncendiaBlocks, chaosGame, classify, classifyLiveParams,
-  pickFlatAxisSwap, swapTransformAxis, buildIncendiaEntry, applyIncendia,
+  pickFlatAxisSwap, swapTransformAxis, classifyFlow, buildIncendiaEntry, applyIncendia,
 } from '../pipeline/incendia.mjs';
 import { composeIfsBlocks } from '../src/attractor/families/ifs';
 
@@ -87,7 +87,7 @@ const NON_CONTIGUOUS = crlf([
 // contractive affine map converges to a single fixed point, no chaos-game structure possible.
 const SINGLE_TRANSFORM = crlf([
   ...HEADER('4 1', 1),
-  '0.5 0 0 0', '0 0.5 0 0', '0 0 0.5 0', '1.0',
+  '0.5 0 0 0', '0.5 0 0 0', '0.5 0 0 0', '1.0',
 ]);
 
 describe('parsePar', () => {
@@ -250,9 +250,9 @@ describe('buildIncendiaEntry', () => {
     expect(outcome.entry).toBeNull();
   });
 
-  it('returns status single-transform with a null entry', () => {
+  it('returns status flow-implausible with a null entry', () => {
     const outcome = buildIncendiaEntry(998, '998-single', '/archive', fakeFs);
-    expect(outcome.status).toBe('single-transform');
+    expect(outcome.status).toBe('flow-implausible');
     expect(outcome.entry).toBeNull();
   });
 
@@ -442,5 +442,79 @@ describe('pickFlatAxisSwap / swapTransformAxis (flat-attractor camera framing)',
     expect(outcome.status).toBe('live');
     // first transform's translation was [0, 0, 1.0] pre-swap; post-swap Y and Z trade places.
     expect(outcome.entry.params.slice(9, 12)).toEqual([0, 1, 0]);
+  });
+});
+
+// Real project/236/236_Wheel_in_the_Sky.par -- gen "6 1", 1 transform (pure uniform 0.432713
+// scale, translation [-0.053282, 0, 1.848541] -- Y component exactly zero, same pattern as day
+// 105's incendia_ifs transforms). Real regression fixture for the single-transform ("Incendia
+// Flow") pipeline path.
+const WHEEL_IN_THE_SKY = crlf([
+  ...HEADER('6 1', 1),
+  '0.432713 0.000000 0.000000 0.000000',
+  '0.432713 0.000000 0.000000 0.000000',
+  '0.432713 -0.053282 0.000000 1.848541',
+  '1.000000',
+]);
+
+describe('classifyFlow', () => {
+  it('accepts a real single-transform day (236, pure 0.432713x scale)', () => {
+    const { transforms } = parsePar(WHEEL_IN_THE_SKY);
+    expect(classifyFlow(transforms[0]).plausible).toBe(true);
+  });
+  it('rejects a hand-constructed zero-translation transform (no fixed point to reseed around)', () => {
+    const transform = { m: [[0.5, 0, 0], [0, 0.5, 0], [0, 0, 0.5]], t: [0, 0, 0], w: 1 };
+    const result = classifyFlow(transform);
+    expect(result.plausible).toBe(false);
+    expect(result.reason).toBe('zero-translation');
+  });
+});
+
+describe('buildIncendiaEntry (single-transform / incendia_flow path)', () => {
+  const fakeFs = {
+    readdirSync(dir) {
+      if (dir.endsWith('236')) return ['236_Wheel_in_the_Sky.par'];
+      throw new Error(`unexpected dir ${dir}`);
+    },
+    readFileSync(path) {
+      if (path.endsWith('236_Wheel_in_the_Sky.par')) return WHEEL_IN_THE_SKY;
+      throw new Error(`unexpected file ${path}`);
+    },
+  };
+
+  it('returns a live incendia_flow entry for a plausible single-transform day', () => {
+    const outcome = buildIncendiaEntry(236, '236-wheel-in-the-sky', '/archive', fakeFs);
+    expect(outcome.status).toBe('live');
+    expect(outcome.entry.system).toBe('incendia_flow');
+    expect(outcome.entry.matrices).toBe(1);
+    expect(outcome.entry.params).toEqual(
+      composeIncendiaBlocks(parsePar(WHEEL_IN_THE_SKY).transforms),
+    );
+  });
+
+  it('does NOT apply the flat-axis correction to incendia_flow entries', () => {
+    // Wheel in the Sky's translation is [-0.053282, 0, 1.848541] -- Y is exactly zero, which
+    // WOULD trigger pickFlatAxisSwap for a multi-transform day. For a single-transform day this
+    // must be skipped entirely (see the design spec's finding: the detection method is
+    // meaningless for a single converging trajectory) -- params must be composeIncendiaBlocks
+    // applied directly to the UNSWAPPED transform, not swapped.
+    const outcome = buildIncendiaEntry(236, '236-wheel-in-the-sky', '/archive', fakeFs);
+    const unswapped = composeIncendiaBlocks(parsePar(WHEEL_IN_THE_SKY).transforms);
+    expect(outcome.entry.params.slice(9, 12)).toEqual(unswapped.slice(9, 12));
+    expect(outcome.entry.params.slice(9, 12)).toEqual([-0.053282, 0, 1.848541]);
+  });
+
+  it('returns status flow-implausible with a null entry for a zero-translation transform', () => {
+    const ZERO_T = crlf([
+      ...HEADER('4 1', 1),
+      '0.5 0 0 0', '0.5 0 0 0', '0.5 0 0 0', '1.0',
+    ]);
+    const fs = {
+      readdirSync: () => ['999_Zero.par'],
+      readFileSync: () => ZERO_T,
+    };
+    const outcome = buildIncendiaEntry(999, '999-zero', '/archive', fs);
+    expect(outcome.status).toBe('flow-implausible');
+    expect(outcome.entry).toBeNull();
   });
 });

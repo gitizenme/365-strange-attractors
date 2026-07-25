@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { estimateChaoticFlowDisplay, estimateLorenz84Display, estimateIfsDisplay, estimateIncendiaDisplay, estimateIconDisplay, estimateUnravelDisplay, estimateJuliaDisplay } from '../src/piece';
+import { estimateChaoticFlowDisplay, estimateLorenz84Display, estimateIfsDisplay, estimateIncendiaDisplay, estimateIncendiaFlowDisplay, estimateIconDisplay, estimateUnravelDisplay, estimateJuliaDisplay } from '../src/piece';
 import { juliaCpuStep } from '../src/attractor/families/julia';
 
 // day 002-event-horizon's real params (lorenz_84: a, b, F, G, dt)
@@ -143,4 +143,36 @@ it('estimateJuliaDisplay: day 011 params (Level 10, small c) settle near the uni
     if (m < 1.5) within++;
   }
   expect(within / total).toBeGreaterThan(0.9);
+});
+
+describe('estimateIncendiaFlowDisplay', () => {
+  it('yields a usable scale and a diverse seed pool for a real single-transform day (236)', () => {
+    // day 236's real composed params (pure 0.432713x scale, translation [-0.053282, 0, 1.848541])
+    const params = [
+      0.432713, 0, 0, 0, 0.432713, 0, 0, 0, 0.432713, -0.053282, 0, 1.848541, 1,
+    ];
+    const d = estimateIncendiaFlowDisplay(params);
+    expect(d.scale).toBeGreaterThan(0);
+    expect(Number.isFinite(d.scale)).toBe(true);
+    expect(d.seed.points.length).toBeGreaterThan(300);
+    expect(d.seed.points.length % 3).toBe(0);
+    for (const v of d.seed.points) expect(Number.isFinite(v)).toBe(true);
+    expect(d.seed.jitter).toBeGreaterThan(0);
+  });
+
+  it('produces genuine spread across the seed pool, not a collapsed single point', () => {
+    // Regression guard for the calibration-found auto-fit trap: the seed pool itself (used only
+    // for SeedSpec, per the design spec) should still show real variation across its log-spaced
+    // depths, not just noise-level jitter around one converged value.
+    const params = [
+      0.432713, 0, 0, 0, 0.432713, 0, 0, 0, 0.432713, -0.053282, 0, 1.848541, 1,
+    ];
+    const d = estimateIncendiaFlowDisplay(params);
+    let minX = Infinity, maxX = -Infinity;
+    for (let i = 0; i < d.seed.points.length; i += 3) {
+      minX = Math.min(minX, d.seed.points[i]);
+      maxX = Math.max(maxX, d.seed.points[i]);
+    }
+    expect(maxX - minX).toBeGreaterThan(0.01);
+  });
 });

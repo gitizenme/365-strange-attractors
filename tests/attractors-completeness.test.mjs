@@ -26,9 +26,9 @@ describe.skipIf(!existsSync(DATA))('attractors.json completeness', () => {
      'regress below the pre-2c Chaoscope-only baseline)', () => {
     expect(attractors.filter(a => a.system !== 'static-only').length).toBeGreaterThanOrEqual(85);
   });
-  it('every incendia_ifs entry carries a matrices count consistent with its stride-13 params', () => {
+  it('every incendia_ifs or incendia_flow entry carries a matrices count consistent with its stride-13 params', () => {
     for (const a of attractors) {
-      if (a.system !== 'incendia_ifs') continue;
+      if (a.system !== 'incendia_ifs' && a.system !== 'incendia_flow') continue;
       expect(a.params.length % 13).toBe(0);
       expect(a.matrices).toBe(a.params.length / 13);
     }

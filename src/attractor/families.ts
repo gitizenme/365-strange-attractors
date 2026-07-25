@@ -12,7 +12,7 @@ import { IFS } from './families/ifs';
 import { ICON } from './families/icon';
 import { UNRAVEL } from './families/unravel';
 import { JULIA } from './families/julia';
-import { INCENDIA_IFS } from './families/incendia';
+import { INCENDIA_IFS, INCENDIA_FLOW } from './families/incendia';
 
 export const FAMILIES: Record<string, AttractorFamily> = {
   lorenz: LORENZ,
@@ -29,6 +29,7 @@ export const FAMILIES: Record<string, AttractorFamily> = {
   unravel: UNRAVEL,
   julia: JULIA,
   incendia_ifs: INCENDIA_IFS,
+  incendia_flow: INCENDIA_FLOW,
 };
 
 export function getFamily(system: string): AttractorFamily | null {

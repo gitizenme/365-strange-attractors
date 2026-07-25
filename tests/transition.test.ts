@@ -45,6 +45,19 @@ describe('transitionKind', () => {
     )).toBe('dissolve');
   });
 
+  it('morphs same-family incendia_flow days (same generic same-system-equal-length rule as ifs)', () => {
+    const p13 = Array.from({ length: 13 }, () => 0.1);
+    expect(transitionKind(
+      { day: 1, system: 'incendia_flow', params: [...p13] },
+      { day: 2, system: 'incendia_flow', params: [...p13] },
+    )).toBe('morph');
+    // different systems, even both single-block-shaped, dissolve
+    expect(transitionKind(
+      { day: 1, system: 'incendia_flow', params: [...p13] },
+      { day: 2, system: 'incendia_ifs', params: [...p13] },
+    )).toBe('dissolve');
+  });
+
   it('morphs same-degree icon days, dissolves across degrees', () => {
     expect(transitionKind(
       { day: 1, system: 'icon', params: [3, 0.1, 0.2, 0.3, 0.4, 0.5] },

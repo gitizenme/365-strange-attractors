@@ -158,6 +158,7 @@ async function boot() {
     orbitBtn.classList.toggle('active', orbit);
     imageBtn.setAttribute('aria-pressed', String(!orbit));
     orbitBtn.setAttribute('aria-pressed', String(orbit));
+    orbitBtn.textContent = piece.currentSystem() === 'incendia_flow' ? 'Flow' : 'Orbit';
   };
   imageBtn.addEventListener('click', () => { if (piece.isHidingStatic()) { piece.toggleHideStatic(); syncModeToggle(); } });
   orbitBtn.addEventListener('click', () => { if (!piece.isHidingStatic()) { piece.toggleHideStatic(); syncModeToggle(); } });
