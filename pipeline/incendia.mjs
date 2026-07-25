@@ -285,7 +285,16 @@ export function buildIncendiaEntry(day, slug, archiveRoot, fs) {
   if (!chosen) return null;
   const p = parsePar(fs.readFileSync(join(dir, chosen), 'utf8'));
   if (!p.clean) return { gen: p.gen, status: 'parse-failed', entry: null };
-  if (p.transforms.length < 2) return { gen: p.gen, status: 'single-transform', entry: null };
+  if (p.transforms.length === 1) {
+    const flow = classifyFlow(p.transforms[0]);
+    if (!flow.plausible) return { gen: p.gen, status: 'flow-implausible', entry: null };
+    // Deliberately NOT applying pickFlatAxisSwap/swapTransformAxis here -- see the design spec's
+    // finding: that correction's detection method compares axis spans across one settled
+    // trajectory, meaningful for a multi-transform attractor's genuine spread but not for a
+    // single-transform trajectory that converges to one point on every axis simultaneously.
+    const entry = { day, slug, system: 'incendia_flow', matrices: 1, params: composeIncendiaBlocks(p.transforms) };
+    return { gen: p.gen, status: 'live', entry };
+  }
   const cls = classify(p.transforms);
   if (!cls.plausible) return { gen: p.gen, status: 'implausible', entry: null };
   const flatAxis = pickFlatAxisSwap(p.transforms);
