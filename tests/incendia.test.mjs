@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import {
-  parsePar, composeIncendiaBlocks, chaosGame, classify, buildIncendiaEntry, applyIncendia,
+  parsePar, composeIncendiaBlocks, chaosGame, classify, classifyLiveParams, buildIncendiaEntry, applyIncendia,
 } from '../pipeline/incendia.mjs';
+import { composeIfsBlocks } from '../src/attractor/families/ifs';
 
 // Real archive fixtures (project/194, project/251, project/316), one per format generation,
 // each hand-verified against the confirmed column-major decode. All three are visually
@@ -295,5 +296,62 @@ describe('applyIncendia', () => {
     expect(stats['4 1']).toEqual({ total: 1, parsed: 1, plausible: 1 }); // day 194
     expect(stats['7 1']).toEqual({ total: 1, parsed: 0, plausible: 0 }); // day 999, parse-failed
     expect(stats['1 1']).toBeUndefined(); // day 1 was never attempted (precedence)
+  });
+});
+
+// Harness calibration (spec §7): the plausibility gate must not systematically reject genuine
+// structure -- guards against a gate that passes everything, or (as happened during Task 0's
+// tightening pass) one that's drifted to reject too much. classify()/isoperimetricRatio were
+// calibrated against Incendia's OWN contact-sheet eyeballing; this is an independent check
+// using a different, pre-existing, already-shipped ground truth: the real chaoscope 'ifs' days
+// (public/data/attractors.json, system 'ifs') -- the only other family that shares Incendia's
+// exact affine chaos-game representation, so their live params are directly gate-comparable via
+// classifyLiveParams. All 7 are real published 2010 artwork (021-fern, 023-flames, 035-starise,
+// 053-fuzzy-logic, 056-evergreen, 062-stairway-to-heaven, 083-galatic-infinity), raw params
+// copied verbatim from the shipped attractors.json on 2026-07-25.
+describe('harness calibration (real chaoscope ifs days, independent ground truth)', () => {
+  const REAL_IFS_DAYS = {
+    '021-fern': [0.39, 0.494, 0.959, -0.904, -0.494, 0.352, -0.236, 0.056, 0.188, 0.168, -0.14, -0.146, -0.088, 0.566, -0.426, 0.112446138389753, 0.118, 0.485, 3.046, 0.681, -0.853, -0.941, -0.195, 0.092, -0.131, 0.167, 0.202, 0.058, 0.395, 0.941, -0.906, 0.79345913779707, 1.289, 1.891, 0.026, 0.808, 0.235, -0.254, -0.134, 0.161, -0.232, 0, -0.016, -0.129, -0.154, -0.304, 0.27, 0.0337299197437659, 1.443, 0.799, 2.486, -0.561, 0.346, 0.262, 0.002, -0.129, 0.201, 0.18, -0.183, 0.196, 0.409, -0.309, 0.222, 0.0603648040694105],
+    '023-flames': [2.955, 0.041, 0.517, -0.459, 0.717, 0.455, -0.012, 0.109, -0.049, -0.168, -0.085, -0.166, -0.922, -0.808, -0.265, 0.0597717728199027, 2.863, 0.043, 0.083, 0.941, -0.953, -0.443, 0.079, -0.231, -0.035, -0.115, -0.241, 0.171, 0.548, 0.161, 0.591, 0.807968432100209, 2.48, 0.263, 1.978, 0.969, -0.948, -0.349, -0.089, 0, -0.051, -0.162, -0.038, -0.17, -0.096, 0.867, 0.616, 0.118445737864378, 0.645, 1.168, 0.734, 0.512, 0.013, -0.061, 0.128, 0.114, -0.129, 0.157, -0.049, -0.076, 0.955, -0.691, 0.43, 0.0138140572155102],
+    '035-starise': [0.239, 2.555, 2.167, -0.494, -0.941, -0.772, 0.116, -0.099, -0.229, -0.095, -0.21, -0.191, -0.739, -0.422, -0.905, 0.409622590345791, 3.118, 0.024, 2.884, 0.321, 0.922, 0.896, 0.033, 0.132, 0, 0.018, 0.063, 0.188, -0.389, -0.123, -0.015, 0.555430624401346, 2.49, 1.216, 1.588, -0.368, 0.105, -0.359, 0.033, 0.188, 0.137, 0.083, 0.134, 0.005, 0.142, 0.209, 0.559, 0.00129496160138827, 1.784, 1.409, 1.374, -0.419, -0.56, 0.218, -0.174, -0.149, -0.13, -0.205, 0.216, -0.088, 0.889, 0.74, -0.258, 0.0336518236514743],
+    '053-fuzzy-logic': [0.447, 1.814, 1.19, 0.271, -0.652, 0.693, 0.089, -0.195, -0.242, 0.132, -0.217, 0.084, 0.115, -0.277, 0.552, 0.0704737099136146, 2.9, 2.458, 1.384, -0.53, -0.912, -0.688, -0.214, 0.016, -0.143, 0.106, -0.007, -0.102, 0.243, -0.415, 0.538, 0.0235571230824675, 0.273, 3.077, 0.024, -0.939, -0.979, -0.914, 0.063, -0.157, 0.005, -0.117, 0.12, -0.172, 0.924, 0.215, -0.023, 0.851651716348456, 2.817, 0.651, 1.196, 0.272, 0.188, 0.887, -0.215, -0.124, -0.08, -0.192, 0.177, -0.213, -0.972, -0.768, 0.249, 0.0543174506554619],
+    '056-evergreen': [0.866, 0.09, 0.21, 0.837, -0.974, 0.568, -0.031, -0.013, -0.225, -0.241, -0.149, -0.11, -0.626, 0.65, 0.717, 0.738511814807342, 0.488, 1.589, 2.033, -0.228, -0.001, 0.709, 0.009, 0.076, 0.1, 0.223, -0.216, 0.151, -0.021, 0.403, -0.054, 0.0045330967382622, 0.28, 3.019, 3.026, 0.681, -0.828, 0.457, 0.208, -0.173, 0.135, 0.215, -0.159, -0.207, -0.709, -0.066, -0.971, 0.209772670631873, 1.754, 2.303, 2.81, 0.981, -0.233, -0.786, 0.077, 0.074, 0.13, -0.07, 0.168, 0.122, -0.734, 0.969, -0.181, 0.0471824178225229],
+    '062-stairway-to-heaven': [3.11, 0.817, 2.605, 0.471, 0.549, -0.008, -0.132, 0.076, 0.023, -0.232, 0.045, 0.117, -0.023, 0.266, -0.797, 0.124069996818326, 3.122, 1.145, 2.666, -0.419, -0.476, -0.418, 0.011, -0.087, 0.126, -0.209, 0.236, 0.181, -0.207, 0.509, -0.381, 0.00496906550979261, 0.305, 0.06, 0.032, 0.941, 0.863, 0.998, 0.241, -0.185, -0.172, -0.017, 0.202, -0.153, -0.109, -0.039, -0.733, 0.852625742873626, 0.805, 0.848, 2.121, 0.142, -0.368, -0.255, -0.066, 0.016, -0.156, 0.199, -0.141, 0.006, 0.455, 0.792, 0.7, 0.0183351947982556],
+    '083-galatic-infinity': [2.719, 3.129, 2.674, -0.537, -0.528, 0.593, -0.14, 0.09, 0.17, -0.074, 0.171, 0.11, 0.431, -0.859, 0.947, 0.0323576612803302, 2.294, 1.31, 1.753, 0.56, -0.977, -0.05, -0.241, 0.098, 0.003, -0.072, 0.074, 0.245, -0.673, 0.089, -0.191, 0.00260209377868233, 0.074, 2.694, 0.176, 0.982, -0.984, 0.209, 0.189, 0.185, -0.246, 0.224, 0.093, 0.047, 0.58, 0.373, -0.497, 0.955692757640459, 2.246, 2.091, 2.248, 0.825, -0.141, -0.035, -0.082, 0.12, 0.17, -0.167, -0.05, -0.071, 0.41, -0.806, -0.504, 0.00934748730052827],
+  };
+
+  for (const [slug, fileParams] of Object.entries(REAL_IFS_DAYS)) {
+    it(`scores ${slug} as plausible through the same CPU gate incendia_ifs uses`, () => {
+      const live = composeIfsBlocks(fileParams);
+      const result = classifyLiveParams(live);
+      expect(result.plausible).toBe(true);
+    });
+  }
+
+  it('does not pass everything indiscriminately (guards a no-op gate)', () => {
+    const degenerate = classifyLiveParams([
+      0.01, 0, 0, 0, 0.01, 0, 0, 0, 0.01, 0, 0, 0, 0.5,
+      0.01, 0, 0, 0, 0.01, 0, 0, 0, 0.01, 0, 0, 0, 0.5,
+    ]);
+    expect(degenerate.plausible).toBe(false);
+  });
+});
+
+// Non-degenerate spread smoke test (spec §7): a plausible incendia_ifs day's chaos-game output
+// must span real extent, not cluster near a point -- guards against a gate/compose bug that
+// technically produces "some" points but not a usable cloud.
+describe('non-degenerate spread smoke test', () => {
+  it('day 194 (Sky Shell) produces a chaos-game point cloud with real spread on every axis', () => {
+    const { transforms } = parsePar(SKY_SHELL);
+    const { pts, n } = chaosGame(transforms);
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity, minZ = Infinity, maxZ = -Infinity;
+    for (let i = 0; i < n; i++) {
+      minX = Math.min(minX, pts[i * 3]); maxX = Math.max(maxX, pts[i * 3]);
+      minY = Math.min(minY, pts[i * 3 + 1]); maxY = Math.max(maxY, pts[i * 3 + 1]);
+      minZ = Math.min(minZ, pts[i * 3 + 2]); maxZ = Math.max(maxZ, pts[i * 3 + 2]);
+    }
+    expect(maxX - minX).toBeGreaterThan(0.01);
+    expect(maxY - minY).toBeGreaterThan(0.01);
+    expect(maxZ - minZ).toBeGreaterThan(0.01);
   });
 });

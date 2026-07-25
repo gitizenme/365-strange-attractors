@@ -181,6 +181,20 @@ export function isoperimetricRatio(grid, S) {
 
 const GATE = { minD: 1.3, minCoverage: 0.003, minIso: 300, maxIso: 12000 };
 
+// De-flattens live stride-13 params (row-major M(9), t(3), w(1)) back into {m,t,w} triples --
+// the inverse of composeIncendiaBlocks. Lets classify() run against already-composed live
+// params from any stride-13-compatible source, not just freshly parsed Incendia transforms --
+// used by the harness-calibration test to sanity-check the gate against real, independently-
+// verified chaoscope ifs days (composed via that family's own composeIfsBlocks).
+export function classifyLiveParams(liveParams) {
+  const transforms = [];
+  for (let i = 0; i + 13 <= liveParams.length; i += 13) {
+    const b = liveParams.slice(i, i + 13);
+    transforms.push({ m: [[b[0], b[1], b[2]], [b[3], b[4], b[5]], [b[6], b[7], b[8]]], t: [b[9], b[10], b[11]], w: b[12] });
+  }
+  return classify(transforms);
+}
+
 export function classify(transforms) {
   if (transforms.length < 2) return { plausible: false, reason: 'single-transform' };
   const { pts, n } = chaosGame(transforms);
