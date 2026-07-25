@@ -3,7 +3,7 @@
 **Date:** 2026-07-24
 **Spec:** `docs/superpowers/specs/2026-07-23-phase2c-incendia-design.md`
 **Branch:** `feat/incendia-completion`
-**Status:** Phase 0 (decoding spike) IN PROGRESS — core `.par` format cracked; verification harness next.
+**Status:** Phase 0 (decoding spike) — format cracked AND render-confirmed; harness built. Ready for Task 1.
 
 > Follows the established per-phase TDD pattern. Phase 0 is a time-boxed spike where
 > *knowledge is the deliverable*; Sections/Tasks 1+ (parser, family, integration) start only
@@ -31,46 +31,62 @@ line 3        : "<s> <1/s>"                  scale + inverse
 lines 4–5     : flags
 line 6        : "<baseShapeId> <transformCount>"   <-- the count that anchors the parse
 lines 7–20    : camera / render setup (14 lines, fixed)
-line 21 …     : <transformCount> transform blocks, each:
-                  row0: a b c tx    (4 floats)
-                  row1: d e f ty    (4 floats)   3×4 affine: 3×3 linear + translation col
-                  row2: g h i tz    (4 floats)
-                  w              : weight (1 float)
+line 21 …     : <transformCount> transform blocks, 4 lines each (12 floats + weight):
+                  row0: 4 floats ┐
+                  row1: 4 floats ├─ 12 floats: COLUMN-MAJOR 3×3 linear (first 9)
+                  row2: 4 floats ┘   + translation = last 3 of row2 (flat[9..11])
+                  w   : 1 float  = weight
 (then)        : per-transform 2D control pairs, camera, gradients, texture refs,
                 and a 256-entry hex palette block — ALL render-only noise, ignorable.
 ```
 
 **Result:** anchoring at line 21 and reading exactly `transformCount` blocks yields a clean
-`[4,4,4,1]×N` read for **276/280 files (98.6%)** — gen4 96/98, gen6 82/82, gen7 98/100.
-`declaredCount == foundBlocks` for the same 276. This clears **exit criterion (a)** for all
-three generations, not just one.
+read for **276/280 files (98.6%)** — gen4 96/98, gen6 82/82, gen7 98/100.
 
-### Key finding — weights are NOT normalized
-Initial "weights sum to ~1.0" hypothesis is FALSE as a hard invariant:
-- single-transform files frequently carry weight `0.5` or `1.0` (irrelevant — one transform is
-  always selected);
-- multi-transform sums are arbitrary (`2.0` = two equal 1.0 weights, `1.1`, `0.714`, …).
-Incendia treats weights as **relative probabilities** and normalizes at iteration time.
-⇒ Normalize (`w_i / Σw`) when building the cumulative-weight selector. ⇒ Weight-sum is
-**not** a parse-validation signal; the render-and-compare harness is the only real check.
+### Transform decode — CONFIRMED BY RENDERING (the critical finding)
+Reading the top 3 rows as a naive **row-major** affine `[L|t]` is WRONG — it produces a
+**singular matrix** whose chaos game collapses to a starburst of rays (a degenerate 1-D set).
+The correct packing, cross-validated three ways:
+- the 12 floats are **column-major 3×3 linear** (`m[i][j] = flat[j*3+i]`) **+ translation =
+  the last 3 floats** (`flat[9..11]`, i.e. row2 cols 1–3);
+- verified against Medusa's own *expanded* rotation×scale block (lines 67–74): the 9 linear
+  floats are exactly `scale·rot` in column-major order, and the translation matches;
+- verified by the web-research strand, which recovered real 2009 Incendia sample `.par` files
+  and **rendered pixel-exact Sierpinski + Menger** from this same layout (row-major read makes
+  those singular too). Public format docs do NOT exist — this decode is empirical.
+- With the fix, **Medusa renders as its feathery frond and Skyscrapers as its cube-city** —
+  the "living skeletons" match the 2010 artwork.
 
-### Open items still in the spike
-1. **~4 non-contiguous files** (087 declared 4/found 2, 129 declared 3/found 2, …): `transformCount`
-   exceeds the contiguous run at line 21 — some transforms stored in a later section (gen7-heavy).
-   Decide: recover them, or let those days fall to `static-only`.
-2. **Affine semantics** — a clean block read does NOT prove correctness. Must confirm via render:
-   row-major vs column-major linear part, translation-column vs separate-translation, coordinate
-   handedness, and the line-3 global scale's role.
-3. **Verification harness (the spike's lasting artifact)** — CPU chaos-game renderer → thumbnail →
-   similarity score (SSIM on downscaled grayscale + palette-histogram distance) vs the day's 2010
-   render. Calibrate thresholds against the 51 known-correct live Chaoscope days (guards against a
-   harness that passes/fails everything).
-4. **Web research** (bounded, in-flight): public Incendia format/transform-model info to corroborate
-   the affine semantics before committing the parser.
+### Weights are NOT globally normalized
+Single-transform files carry weight `0.5`/`1.0` (irrelevant — one map always selected);
+multi-transform sums are arbitrary. Research confirms weights sum to 1.0 **per base-shape
+group**, not per file. ⇒ Normalize `w_i/Σw` when building the cumulative selector. ⇒ Weight-sum
+is not a validation signal.
 
-### Exit
-- (a) met on the block structure; **not exiting Phase 0 until the harness confirms semantics** on a
-  majority of days per generation. Then → Tasks below.
+### Verification harness — BUILT (`scripts/spike/incendia_render.mjs`)
+Parse → CPU chaos-game (LCG-seeded, divergence rescue) → project to best-spread plane →
+density raster → PNG + **box-counting fractal dimension** classifier + corpus sweep.
+- **IoU-vs-2010-render is a BROKEN metric** — a sparse skeleton barely overlaps a dense
+  volumetric render, and starbursts spuriously score HIGH (day 094 starburst scored top IoU).
+  Discarded. **Fractal dimension** is the reliable plausibility gate: rays ≈ D 1.0,
+  single-transform fixed points D 0, genuine attractors D 1.5–2.0.
+- **Corpus sweep (corrected decode):** 276 parsed → **118 plausible** (D≥1.3 & coverage≥.003).
+  gen4 48/96, gen6 34/82, gen7 36/98.
+
+### Addressable set (the count we drive down)
+- **~118 multi-transform days render as genuine affine fractals** → live candidates. Realistic
+  live-coverage lift: 85 → **~185–200** once wired through the pipeline (some plausible days
+  still need per-day visual spot-check).
+- **Single-transform days (~124): NOT addressable** by affine chaos game — one map = one fixed
+  point (D 0); their 2010 richness is all base-shape/volumetric (out of scope) → stay static-only.
+- **~12 divergent days** (non-contractive maps, high reseed counts, e.g. 239/297/318) — need a
+  contraction guard or fall to static-only.
+- **4 non-contiguous files** (087/129/…): `transformCount` > contiguous run → recover or static-only.
+
+### Exit — CLEARED
+Format decodes and *renders correctly* across all three generations for the multi-transform
+majority. Proceed to Task 1 (pipeline parser). The harness stays as the calibration/spot-check
+tool and the source of the plausibility gate.
 
 ---
 
