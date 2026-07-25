@@ -422,6 +422,50 @@ export function estimateJuliaDisplay(params: number[]): { scale: number; centerX
   return sampleSettledTrajectory(step, s, 200, 4000);
 }
 
+// Incendia Flow: a single-transform trajectory just converges to a fixed point, so the existing
+// "settle then sample the tail" pattern (sampleSettledTrajectory) gives no interesting bounding
+// box -- there's no tail, just one point. Instead sample many independent partial trajectories
+// at LOG-SPACED checkpoint depths (not a single fixed depth, and not a uniform-random range --
+// both were tried and found not to work across the real corpus's contraction range 0.25-0.9468,
+// see the design spec's calibration notes: a fixed/ranged depth that shows real motion for the
+// slowest-converging real day is already fully converged to floating-point noise for the
+// fastest, and vice versa). Log-spaced depths [1,2,4,8,16,32,64] cover from just-perturbed
+// through several e-foldings of convergence regardless of the specific contraction rate, with no
+// per-day tuning needed -- verified by rendering the fastest, slowest, and a mid-range real day.
+//
+// Scale is NOT auto-fit to the sample's own min/max (unlike every other estimator in this file)
+// -- calibration found that trap directly: a fast-converging map's leftover "spread" after many
+// steps is pure floating-point rounding noise (observed as small as ~1e-10), and auto-fitting
+// rescales that noise to fill the frame, making a fully-converged, visually-static case look
+// deceptively lively. Scale instead derives from the transform's own translation length -- a
+// natural per-day scale proxy available without running any simulation at all.
+const INCENDIA_FLOW_TARGET_HALF_EXTENT = 4; // matches sampleSettledTrajectory's own target
+const INCENDIA_FLOW_REFERENCE_MULTIPLIER = 3; // local-space half-extent, in units of length(t)
+const INCENDIA_FLOW_DEPTHS = [1, 2, 4, 8, 16, 32, 64];
+export function estimateIncendiaFlowDisplay(params: number[]): { scale: number; centerX: number; centerY: number; centerZ: number; seed: SeedSpec } {
+  const tLen = Math.hypot(params[9], params[10], params[11]);
+  const localHalfExtent = INCENDIA_FLOW_REFERENCE_MULTIPLIER * tLen || 0.1;
+  const N = 200;
+  const seedPoints: number[] = [];
+  const maxDepth = INCENDIA_FLOW_DEPTHS[INCENDIA_FLOW_DEPTHS.length - 1];
+  for (let k = 0; k < N; k++) {
+    const s = { x: (Math.random() - 0.5) * 4, y: (Math.random() - 0.5) * 4, z: (Math.random() - 0.5) * 4 };
+    let depthIndex = 0;
+    for (let i = 1; i <= maxDepth; i++) {
+      ifsCpuStep(params, s, Math.random);
+      if (i === INCENDIA_FLOW_DEPTHS[depthIndex]) {
+        depthIndex++;
+        if (Number.isFinite(s.x) && Number.isFinite(s.y) && Number.isFinite(s.z)) seedPoints.push(s.x, s.y, s.z);
+      }
+    }
+  }
+  return {
+    scale: INCENDIA_FLOW_TARGET_HALF_EXTENT / localHalfExtent,
+    centerX: 0, centerY: 0, centerZ: 0,
+    seed: { points: Float32Array.from(seedPoints), jitter: localHalfExtent * 0.02 },
+  };
+}
+
 // One entry point for "how should this family's live cloud be scaled/positioned/seeded," instead
 // of open() re-deriving it via a chain of `attractor.system === X ? estimateX(...) : null` calls
 // followed by two parallel scale/centerZ ternaries walking the same chain again (the shape that
@@ -458,6 +502,7 @@ const DISPLAY_ESTIMATORS: Record<string, (params: number[]) => DisplayResult> = 
   polynomial_b: estimatePolynomialBDisplay,
   ifs: estimateIfsDisplay,
   incendia_ifs: estimateIncendiaDisplay,
+  incendia_flow: estimateIncendiaFlowDisplay,
   icon: estimateIconDisplay,
   unravel: estimateUnravelDisplay,
   julia: estimateJuliaDisplay,
