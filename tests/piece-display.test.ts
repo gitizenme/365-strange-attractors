@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { estimateChaoticFlowDisplay, estimateLorenz84Display, estimateIfsDisplay, estimateIconDisplay, estimateUnravelDisplay, estimateJuliaDisplay } from '../src/piece';
+import { estimateChaoticFlowDisplay, estimateLorenz84Display, estimateIfsDisplay, estimateIncendiaDisplay, estimateIconDisplay, estimateUnravelDisplay, estimateJuliaDisplay } from '../src/piece';
 import { juliaCpuStep } from '../src/attractor/families/julia';
 
 // day 002-event-horizon's real params (lorenz_84: a, b, F, G, dt)
@@ -78,6 +78,23 @@ describe('estimateIfsDisplay', () => {
     expect(d.scale).toBeGreaterThan(0);
     expect(Number.isFinite(d.scale)).toBe(true);
     expect(d.seed.points.length).toBeGreaterThan(300);
+  });
+});
+
+describe('estimateIncendiaDisplay', () => {
+  it('yields a usable scale and seed for real composed day-194 (Sky Shell) params', () => {
+    // pipeline/incendia.mjs's composeIncendiaBlocks output for project/194/194_Sky_Shell.par
+    // (hand-verified decode -- see tests/incendia.test.mjs) -- already the live stride-13 form,
+    // no compose step needed here, unlike estimateIfsDisplay above.
+    const params = [
+      0.915288, -0.118028, -0.215518, 0.153114, 0.924062, 0.144202, 0.192183, -0.174090, 0.911530, -1.382818, 0.354384, -1.400795, 0.9,
+      -0.355732, 0.183385, 0.520069, -0.264121, 0.486626, -0.352253, -0.484088, -0.400265, -0.189981, -0.265924, 0.166168, -0.389452, 0.1,
+    ];
+    const d = estimateIncendiaDisplay(params);
+    expect(d.scale).toBeGreaterThan(0);
+    expect(Number.isFinite(d.scale)).toBe(true);
+    expect(d.seed.points.length).toBeGreaterThan(300);
+    for (const v of d.seed.points) expect(Number.isFinite(v)).toBe(true);
   });
 });
 
