@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   parsePar, composeIncendiaBlocks, chaosGame, classify, classifyLiveParams,
-  pickFlatAxisSwap, swapTransformAxis, buildIncendiaEntry, applyIncendia,
+  pickFlatAxisSwap, swapTransformAxis, classifyFlow, buildIncendiaEntry, applyIncendia,
 } from '../pipeline/incendia.mjs';
 import { composeIfsBlocks } from '../src/attractor/families/ifs';
 
@@ -442,5 +442,30 @@ describe('pickFlatAxisSwap / swapTransformAxis (flat-attractor camera framing)',
     expect(outcome.status).toBe('live');
     // first transform's translation was [0, 0, 1.0] pre-swap; post-swap Y and Z trade places.
     expect(outcome.entry.params.slice(9, 12)).toEqual([0, 1, 0]);
+  });
+});
+
+// Real project/236/236_Wheel_in_the_Sky.par -- gen "6 1", 1 transform (pure uniform 0.432713
+// scale, translation [-0.053282, 0, 1.848541] -- Y component exactly zero, same pattern as day
+// 105's incendia_ifs transforms). Real regression fixture for the single-transform ("Incendia
+// Flow") pipeline path.
+const WHEEL_IN_THE_SKY = crlf([
+  ...HEADER('6 1', 1),
+  '0.432713 0.000000 0.000000 0.000000',
+  '0.432713 0.000000 0.000000 0.000000',
+  '0.432713 -0.053282 0.000000 1.848541',
+  '1.000000',
+]);
+
+describe('classifyFlow', () => {
+  it('accepts a real single-transform day (236, pure 0.432713x scale)', () => {
+    const { transforms } = parsePar(WHEEL_IN_THE_SKY);
+    expect(classifyFlow(transforms[0]).plausible).toBe(true);
+  });
+  it('rejects a hand-constructed zero-translation transform (no fixed point to reseed around)', () => {
+    const transform = { m: [[0.5, 0, 0], [0, 0.5, 0], [0, 0, 0.5]], t: [0, 0, 0], w: 1 };
+    const result = classifyFlow(transform);
+    expect(result.plausible).toBe(false);
+    expect(result.reason).toBe('zero-translation');
   });
 });

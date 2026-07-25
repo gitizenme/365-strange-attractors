@@ -258,6 +258,21 @@ export function swapTransformAxis(transforms, flatAxis) {
   }));
 }
 
+// ---------- single-transform ("Incendia Flow") quality gate ----------
+// Calibration (2026-07-25, see docs/superpowers/specs/2026-07-25-incendia-flow-design.md) checked
+// every one of the 124 real single-transform days' contraction factor (Frobenius-norm scale of
+// the linear part) and found the whole population genuinely contractive: range 0.25-0.9468,
+// median 0.39, zero days at or above 0.95 -- none are near-identity, none are non-contracting.
+// There is no real threshold to calibrate: every one of the 124 real days is expected to pass.
+// The one defensive guard is a transform with zero translation, which has no meaningful fixed
+// point or scale reference to reseed around (not observed in the real corpus, but a `.par` file
+// could in principle produce one).
+export function classifyFlow(transform) {
+  const tLen = Math.hypot(transform.t[0], transform.t[1], transform.t[2]);
+  if (tLen === 0) return { plausible: false, reason: 'zero-translation' };
+  return { plausible: true };
+}
+
 // ---------- pipeline entry points ----------
 
 // Returns null only when the day has no .par file at all. Otherwise always returns
