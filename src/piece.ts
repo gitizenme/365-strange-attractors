@@ -66,6 +66,7 @@ const FAMILY_LABELS: Record<string, string> = {
   chaotic_flow: 'Chaotic flow', polynomial_a: 'Polynomial A', polynomial_b: 'Polynomial B',
   polynomial_c: 'Polynomial C', polynomial_func: 'Polynomial', polynomial_sprott: 'Polynomial (Sprott)',
   julia: 'Julia (quaternion)', ifs: 'IFS', unravel: 'Unravel',
+  incendia_ifs: 'Incendia IFS', incendia_flow: 'Incendia flow',
 };
 export function familyLabel(system: string | undefined): string | null {
   if (!system) return null;
@@ -881,6 +882,13 @@ export class PieceView {
   // it), so main.ts needs to re-sync the button's label after those transitions too, not just right
   // after a click.
   isHidingStatic(): boolean { return this.root.classList.contains('hide-static'); }
+
+  // The open piece's current attractor system, if any -- lets main.ts's Image|Orbit mode toggle
+  // show a different label ("Flow" vs "Orbit") for incendia_flow days without reaching into this
+  // class's internals. Mirrors isHidingStatic()'s existing accessor pattern.
+  currentSystem(): string | undefined {
+    return this.current ? this.attractorsByDay.get(this.current.day)?.system : undefined;
+  }
 
   // True when the static image is hidden and a live cloud is actively showing full-brightness —
   // main.ts's render loop uses this to skip drawing the constellation behind the cloud that frame.
