@@ -73,6 +73,38 @@ density raster → PNG + **box-counting fractal dimension** classifier + corpus 
 - **Corpus sweep (corrected decode):** 276 parsed → **118 plausible** (D≥1.3 & coverage≥.003).
   gen4 48/96, gen6 34/82, gen7 36/98.
 
+### Gate tightened — isoperimetric ratio (perimeter²/area) added
+A first contact-sheet review (top 30 by D) showed ~10-12/30 "plausible" tiles were actually
+**solid blobs or noise-fill**, not real fractal detail — boxDim alone can't tell "genuinely
+fractal boundary" from "chaos game just fills a simple convex region" (a uniform disk also
+scores D≈2). Added `isoperimetricRatio()`: by the isoperimetric inequality a disk/convex blob
+*minimizes* perimeter for its area, so smooth fills score near a geometric floor while jagged
+fractal boundaries (holes, filaments, branches) run far higher, independent of coverage.
+
+**Calibrated 2026-07-25** against 16 known-good / 12 known-bad days eyeballed from the first
+sheet: good clustered iso 575–9686; bad split into **two** clusters — solid-blob (iso 10–278,
+smooth boundary) and noisy speckle-fill (iso 14554–20079). A **band gate** `iso ∈ [300, 12000]`
+catches 11/12 bad cases while passing all 16 good (one residual, day 105, sits ambiguously
+inside the good band — left to the planned manual spot-check).
+
+**Corroborating signal:** 9 of the 11 high-iso rejects are *also* flagged by the harness's own
+divergence-reseed counter (non-contractive transform sets) — the "noisy" cluster isn't a
+separate failure mode, it's unstable/divergent parameter sets, confirmed two independent ways.
+
+**Iteration-count sensitivity (methodological gotcha, fixed):** iso keeps *decreasing* toward
+the smooth-blob floor as iteration count grows (more points fill in internal gaps) — day 203
+scored iso=693.9 at 250k iterations (falsely inside the good band) vs iso=42.2 at 400k
+(correctly low). `contact_sheet.mjs` and the sweep must use the same iteration count (400k)
+and raster resolution (256) or their gates silently disagree. Also fixed: the harness's CLI
+block wasn't guarded against `import` side effects, and a naive `import.meta.url` direct-execution
+check breaks on this repo's space-containing path — needed `pathToFileURL()`.
+
+**Tightened corpus sweep:** 276 parsed → **101 plausible** (D≥1.3, coverage≥.003, iso∈[300,12000]).
+gen4 44/96, gen6 25/82, gen7 32/98. Second contact sheet (top 30 by D) confirms: nearly every
+tile is now genuine structure — nautilus spirals, organic fronds, cube-cities, wireframe mazes,
+mandalas. Realistic live-coverage lift: **85 → ~186 days** (85 + 101), pending Task-1 pipeline
+wiring and the per-day visual spot-check the spec already calls for for the residual edge cases.
+
 ### Addressable set (the count we drive down)
 - **~118 multi-transform days render as genuine affine fractals** → live candidates. Realistic
   live-coverage lift: 85 → **~185–200** once wired through the pipeline (some plausible days

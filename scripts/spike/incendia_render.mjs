@@ -10,6 +10,7 @@
 
 import { readFileSync, readdirSync, statSync, mkdirSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import sharp from 'sharp';
 
 const ARCHIVE = process.argv[2];
@@ -53,7 +54,7 @@ export function parsePar(path) {
 
 // ---------- chaos game ----------
 const TRANSPOSE = process.env.TP === '1';
-function chaosGame(transforms, { iters = 1_500_000, burn = 25 } = {}) {
+export function chaosGame(transforms, { iters = 1_500_000, burn = 25 } = {}) {
   if (TRANSPOSE) transforms = transforms.map((tr) => ({
     w: tr.w, t: tr.t,
     m: [[tr.m[0][0], tr.m[1][0], tr.m[2][0]], [tr.m[0][1], tr.m[1][1], tr.m[2][1]], [tr.m[0][2], tr.m[1][2], tr.m[2][2]]],
@@ -93,7 +94,7 @@ function bounds(pts, n, axisA, axisB) {
 }
 
 // project to density grid on plane (axisA, axisB)
-function raster(pts, n, axisA, axisB, S = 256) {
+export function raster(pts, n, axisA, axisB, S = 256) {
   const bb = bounds(pts, n, axisA, axisB);
   const spanA = bb.aMax - bb.aMin || 1, spanB = bb.bMax - bb.bMin || 1;
   const span = Math.max(spanA, spanB);
@@ -111,7 +112,9 @@ function raster(pts, n, axisA, axisB, S = 256) {
 
 // box-counting fractal dimension of the occupied cells: separates ~1D starbursts (rays
 // through a fixed point, D≈1) from genuine 2D+ attractor structure (D≈1.6–2).
-function boxDim(grid, S) {
+// NOTE: does NOT separate real fractal detail from a solid filled blob (disk/diamond/triangle)
+// — a uniformly-filled region also scores D≈2. See isoperimetricRatio for that.
+export function boxDim(grid, S) {
   const occ = (size) => {
     const step = S / size;
     const seen = new Set();
@@ -130,12 +133,39 @@ function boxDim(grid, S) {
   return den ? num / den : 0;
 }
 
-function toPng(grid, S, path) {
+// Isoperimetric ratio (perimeter^2 / area) of the occupied-cell mask, 4-connected boundary
+// (a pixel adjacent to any empty neighbor — including neighbors inside an internal hole —
+// counts as boundary, so holes/branches contribute).
+// By the isoperimetric inequality a disk MINIMIZES perimeter for a given area — so a smooth
+// filled blob (disk/diamond/triangle) scores near the theoretical floor (~4·pi for a disk on
+// a square grid, roughly constant regardless of size), while a genuinely fractal boundary
+// (holes, filaments, branches at many scales) has no such bound and runs far higher.
+// This is the metric that separates "real fractal detail" from "chaos game just fills a
+// simple convex region" — boxDim alone cannot make that distinction.
+export function isoperimetricRatio(grid, S) {
+  let area = 0, perim = 0;
+  for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
+    if (!grid[y * S + x]) continue;
+    area++;
+    const up = y > 0 ? grid[(y - 1) * S + x] : 0;
+    const down = y < S - 1 ? grid[(y + 1) * S + x] : 0;
+    const left = x > 0 ? grid[y * S + x - 1] : 0;
+    const right = x < S - 1 ? grid[y * S + x + 1] : 0;
+    if (!up || !down || !left || !right) perim++;
+  }
+  return area ? (perim * perim) / area : 0;
+}
+
+export function gridToBuf(grid, S) {
   let max = 0; for (const v of grid) if (v > max) max = v;
-  const lg = Math.log1p(max);
+  const lg = Math.log1p(max) || 1;
   const buf = Buffer.alloc(S * S);
   for (let i = 0; i < grid.length; i++) buf[i] = grid[i] ? Math.min(255, Math.floor((Math.log1p(grid[i]) / lg) * 255)) : 0;
-  return sharp(buf, { raw: { width: S, height: S, channels: 1 } }).png().toFile(path);
+  return buf;
+}
+
+function toPng(grid, S, path) {
+  return sharp(gridToBuf(grid, S), { raw: { width: S, height: S, channels: 1 } }).png().toFile(path);
 }
 
 // ---------- day file selection ----------
@@ -177,7 +207,10 @@ async function structureScore(grid, S, assetPath) {
 }
 
 // ---------- commands ----------
-if (CMD === 'render') {
+// Guarded so other spike scripts can `import` this module's exports (parsePar, chaosGame,
+// raster, boxDim, isoperimetricRatio, gridToBuf) without triggering the CLI side effects below.
+const isMain = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
+if (isMain && CMD === 'render') {
   const day = process.argv[4];
   const axisArg = process.argv[5] || 'auto';
   const { path, name } = dayPath(ARCHIVE, day);
@@ -192,14 +225,38 @@ if (CMD === 'render') {
     const out = join(OUT, `${name}_${pl}.png`);
     await toPng(grid, S, out);
     const D = boxDim(grid, S);
+    const iso = isoperimetricRatio(grid, S);
     const asset = renderAsset(ARCHIVE, name);
     const sc = asset ? await structureScore(grid, S, asset) : { iou: null };
-    console.log(`${name} gen[${p.gen}] tf=${p.count} plane=${pl} coverage=${coverage.toFixed(3)} D=${D.toFixed(2)} iou=${sc.iou?.toFixed(3)} reseeds=${reseeds} -> ${out}`);
+    console.log(`${name} gen[${p.gen}] tf=${p.count} plane=${pl} coverage=${coverage.toFixed(3)} D=${D.toFixed(2)} iso=${iso.toFixed(1)} iou=${sc.iou?.toFixed(3)} reseeds=${reseeds} -> ${out}`);
     if (!bestPlane || coverage > bestPlane.coverage) bestPlane = { pl, coverage };
   }
   const asset = renderAsset(ARCHIVE, name);
   console.log(`2010 render: ${asset || 'NONE'}`);
   console.log(`best-spread plane: ${bestPlane.pl}`);
+} else if (CMD === 'calibrate') {
+  // Calibrate the isoperimetric-ratio threshold against the known good/bad split observed
+  // by eye in the first contact sheet (2026-07-25).
+  const GOOD = [223, 194, 106, 171, 156, 151, 126, 168, 115, 260, 316, 312, 251, 270, 135, 86];
+  const BAD = [203, 105, 293, 101, 122, 357, 172, 347, 243, 240, 318, 107];
+  for (const [label, days] of [['GOOD', GOOD], ['BAD', BAD]]) {
+    console.log(`--- ${label} ---`);
+    for (const day of days) {
+      const { path, name } = dayPath(ARCHIVE, String(day).padStart(3, '0'));
+      const p = parsePar(path);
+      if (!p.clean || p.transforms.length < 2) { console.log(`${day} ${name}: skip (parse/single-transform)`); continue; }
+      const { pts, n } = chaosGame(p.transforms, { iters: 400_000 });
+      const planes = [[0, 1], [0, 2], [1, 2]];
+      let best = null;
+      for (const [A, B] of planes) {
+        const { grid, S, coverage } = raster(pts, n, A, B);
+        if (!best || coverage > best.coverage) best = { grid, S, coverage };
+      }
+      const D = boxDim(best.grid, best.S);
+      const iso = isoperimetricRatio(best.grid, best.S);
+      console.log(`${day} ${name}: D=${D.toFixed(2)} iso=${iso.toFixed(1)} coverage=${best.coverage.toFixed(3)}`);
+    }
+  }
 } else if (CMD === 'sweep') {
   const limit = Number(process.argv[4] || 300);
   const dirs = readdirSync(join(ARCHIVE, 'project')).filter((d) => /^\d+$/.test(d)).sort().slice(0, limit);
@@ -212,22 +269,30 @@ if (CMD === 'render') {
       if (!p.clean || !p.transforms.length) { rows.push({ day, gen: p.gen, ok: false, why: 'parse' }); continue; }
       const { pts, n, reseeds } = chaosGame(p.transforms, { iters: 400_000 });
       const planes = [[0, 1], [0, 2], [1, 2]];
-      let best = { coverage: 0, D: 0 };
+      let best = { coverage: 0, D: 0, iso: 0 };
       for (const [A, B] of planes) {
         const { grid, S, coverage } = raster(pts, n, A, B);
         const D = boxDim(grid, S);
-        if (coverage > best.coverage) best = { coverage, D };
+        const iso = isoperimetricRatio(grid, S);
+        if (coverage > best.coverage) best = { coverage, D, iso };
       }
-      rows.push({ day, gen: p.gen, tf: p.count, ok: true, coverage: +best.coverage.toFixed(3), D: +best.D.toFixed(2), reseeds });
+      rows.push({ day, gen: p.gen, tf: p.count, ok: true, coverage: +best.coverage.toFixed(3), D: +best.D.toFixed(2), iso: +best.iso.toFixed(1), reseeds });
     } catch (e) { rows.push({ day, ok: false, why: e.message }); }
   }
   const good = rows.filter((r) => r.ok);
-  // plausible = non-degenerate structure: fractal dimension D >= 1.3 (rays are ~1.0).
-  const plausible = good.filter((r) => r.D >= 1.3 && r.coverage >= 0.003);
-  console.log(`swept ${rows.length}: parsed ${good.length}, plausible(D>=1.3 & cov>=.003) ${plausible.length}, low-D/degenerate ${good.length - plausible.length}`);
+  // plausible = non-degenerate structure (D>=1.3, rays are ~1.0) AND a mid-band isoperimetric
+  // ratio: too LOW means a solid convex blob (disk/diamond/triangle, smooth boundary), too
+  // HIGH means noisy ergodic speckle-fill (near-isolated pixels inflate perimeter). Band
+  // calibrated 2026-07-25 against a 16-good/12-bad set eyeballed from the first contact sheet:
+  // good clustered 575-9686, bad split into two clusters (10-278 and 14554-20079).
+  const isPlausible = (r) => r.D >= 1.3 && r.coverage >= 0.003 && r.iso >= 300 && r.iso <= 12000;
+  const plausible = good.filter(isPlausible);
+  console.log(`swept ${rows.length}: parsed ${good.length}, plausible(D>=1.3, cov>=.003, iso in [300,12000]) ${plausible.length}, rejected ${good.length - plausible.length}`);
   const byGen = {};
-  for (const r of good) { byGen[r.gen] = byGen[r.gen] || { n: 0, cov: 0, D: 0, plaus: 0 }; const g = byGen[r.gen]; g.n++; g.cov += r.coverage; g.D += r.D; if (r.D >= 1.3 && r.coverage >= 0.003) g.plaus++; }
+  for (const r of good) { byGen[r.gen] = byGen[r.gen] || { n: 0, cov: 0, D: 0, plaus: 0 }; const g = byGen[r.gen]; g.n++; g.cov += r.coverage; g.D += r.D; if (isPlausible(r)) g.plaus++; }
   for (const g of Object.keys(byGen).sort()) { const b = byGen[g]; console.log(`gen[${g}] n=${b.n} avgCoverage=${(b.cov / b.n).toFixed(3)} avgD=${(b.D / b.n).toFixed(2)} plausible=${b.plaus}/${b.n}`); }
   console.log('lowest D (starburst suspects):', good.sort((a, b) => a.D - b.D).slice(0, 12).map((r) => `${r.day}:${r.D}`).join(' '));
+  console.log('low-iso rejects (solid blob):', good.filter((r) => r.D >= 1.3 && r.iso < 300).map((r) => `${r.day}:${r.iso}`).join(' ') || 'none');
+  console.log('high-iso rejects (noise fill):', good.filter((r) => r.D >= 1.3 && r.iso > 12000).map((r) => `${r.day}:${r.iso}`).join(' ') || 'none');
   console.log('reseed(divergent) days:', good.filter((r) => r.reseeds > 1000).map((r) => r.day).join(' ') || 'none');
 }
