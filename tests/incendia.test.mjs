@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
-  parsePar, composeIncendiaBlocks, chaosGame, classify, classifyLiveParams, buildIncendiaEntry, applyIncendia,
+  parsePar, composeIncendiaBlocks, chaosGame, classify, classifyLiveParams,
+  pickFlatAxisSwap, swapTransformAxis, buildIncendiaEntry, applyIncendia,
 } from '../pipeline/incendia.mjs';
 import { composeIfsBlocks } from '../src/attractor/families/ifs';
 
@@ -57,6 +58,21 @@ const WIRED = crlf([
   '-0.348615 0.169801 -0.225480 0.491741',
   '0.337478 0.351327 0.225130 -0.275473',
   '0.100000',
+]);
+
+// project/105/105_Horn_of_Rings.par -- gen "7 1", 7 transforms, real regression fixture for the
+// flat-axis fix (see pickFlatAxisSwap below). Every transform is a pure uniform 0.753020 scale
+// (identity-shaped matrix) with translation [x, 0, z] -- the Y component is EXACTLY zero in
+// every single block, not just small, which is why the decoded attractor is perfectly flat.
+const HORN_OF_RINGS = crlf([
+  ...HEADER('7 1', 7),
+  '0.753020 0.000000 0.000000 0.000000', '0.753020 0.000000 0.000000 0.000000', '0.753020 0.000000 0.000000 1.000000', '0.142857',
+  '0.753020 0.000000 0.000000 0.000000', '0.753020 0.000000 0.000000 0.000000', '0.753020 0.781831 0.000000 0.623490', '0.142857',
+  '0.753020 0.000000 0.000000 0.000000', '0.753020 0.000000 0.000000 0.000000', '0.753020 0.974928 0.000000 -0.222521', '0.142857',
+  '0.753020 0.000000 0.000000 0.000000', '0.753020 0.000000 0.000000 0.000000', '0.753020 0.433884 0.000000 -0.900969', '0.142857',
+  '0.753020 0.000000 0.000000 0.000000', '0.753020 0.000000 0.000000 0.000000', '0.753020 -0.433884 0.000000 -0.900969', '0.142857',
+  '0.753020 0.000000 0.000000 0.000000', '0.753020 0.000000 0.000000 0.000000', '0.753020 -0.974928 0.000000 -0.222521', '0.142857',
+  '0.753020 0.000000 0.000000 0.000000', '0.753020 0.000000 0.000000 0.000000', '0.753020 -0.781832 0.000000 0.623490', '0.142857',
 ]);
 
 // declares 2 transforms but the second block is malformed (only 3 numbers on its first row)
@@ -353,5 +369,78 @@ describe('non-degenerate spread smoke test', () => {
     expect(maxX - minX).toBeGreaterThan(0.01);
     expect(maxY - minY).toBeGreaterThan(0.01);
     expect(maxZ - minZ).toBeGreaterThan(0.01);
+  });
+});
+
+// Flat-axis camera-framing fix, browser-verified regression for real day 105 (Horn of Rings):
+// its default Orbit view rendered as a near-invisible edge-on line -- traced to every sample
+// point having Y ~ 0 (confirmed here: exactly 0 in every transform's translation, not just
+// small). Drag-to-rotate revealed the correct dense disk. Fix: detect the flat axis and swap
+// it with Z so the default camera's visible X/Y plane shows the real structure.
+describe('pickFlatAxisSwap / swapTransformAxis (flat-attractor camera framing)', () => {
+  it('detects axis 1 (Y) as flat for the real Horn of Rings transforms', () => {
+    const { transforms } = parsePar(HORN_OF_RINGS);
+    expect(pickFlatAxisSwap(transforms)).toBe(1);
+  });
+
+  it('does not recommend a swap for a real, already-3D-balanced attractor', () => {
+    const { transforms } = parsePar(SKY_SHELL);
+    expect(pickFlatAxisSwap(transforms)).toBeNull();
+  });
+
+  it('swapTransformAxis correctly conjugates a non-symmetric matrix (M\'[i][j] = M[perm[i]][perm[j]])', () => {
+    // hand-constructed so every entry is distinct -- a strong test that the permutation isn't
+    // accidentally only correct for the real fixture's symmetric-diagonal special case.
+    const transforms = [{
+      m: [[1, 2, 3], [4, 5, 6], [7, 8, 9]],
+      t: [10, 20, 30],
+      w: 1,
+    }];
+    const [swapped] = swapTransformAxis(transforms, 1); // swap Y(1) <-> Z(2)
+    // perm = [0, 2, 1]; M'[i][j] = M[perm[i]][perm[j]]
+    expect(swapped.m).toEqual([
+      [1, 3, 2], // row 0: M[0][0], M[0][2], M[0][1]
+      [7, 9, 8], // row 1 (was row 2): M[2][0], M[2][2], M[2][1]
+      [4, 6, 5], // row 2 (was row 1): M[1][0], M[1][2], M[1][1]
+    ]);
+    expect(swapped.t).toEqual([10, 30, 20]);
+    expect(swapped.w).toBe(1);
+  });
+
+  it('after swapping, the real Horn of Rings attractor has real spread on the former-flat axis and is flat on the new Z instead', () => {
+    const { transforms } = parsePar(HORN_OF_RINGS);
+    const flatAxis = pickFlatAxisSwap(transforms);
+    const swapped = swapTransformAxis(transforms, flatAxis);
+    const { pts, n } = chaosGame(swapped);
+    let minY = Infinity, maxY = -Infinity, minZ = Infinity, maxZ = -Infinity;
+    for (let i = 0; i < n; i++) {
+      minY = Math.min(minY, pts[i * 3 + 1]); maxY = Math.max(maxY, pts[i * 3 + 1]);
+      minZ = Math.min(minZ, pts[i * 3 + 2]); maxZ = Math.max(maxZ, pts[i * 3 + 2]);
+    }
+    // Z isn't bit-for-bit zero: chaosGame seeds z=-0.03 and the 0.753 contraction only decays
+    // it toward zero asymptotically (burn=25 steps isn't enough for full convergence at this
+    // rate) -- a relative comparison is the honest check, not a fragile absolute threshold.
+    expect(maxY - minY).toBeGreaterThan(0.1); // Y now carries the real structure
+    expect(maxZ - minZ).toBeLessThan((maxY - minY) * 0.01); // Z is now the negligible axis (was Y)
+  });
+
+  it('swapping does not change classify()\'s plausibility verdict (axis-relabeling only)', () => {
+    const { transforms } = parsePar(HORN_OF_RINGS);
+    const before = classify(transforms);
+    const flatAxis = pickFlatAxisSwap(transforms);
+    const after = classify(swapTransformAxis(transforms, flatAxis));
+    expect(after.plausible).toBe(before.plausible);
+    expect(after.D).toBeCloseTo(before.D, 5);
+  });
+
+  it('buildIncendiaEntry applies the swap end-to-end: composed params carry the corrected translation', () => {
+    const fakeFs = {
+      readdirSync: (dir) => (dir.endsWith('105') ? ['105_Horn_of_Rings.par'] : []),
+      readFileSync: (path) => (path.endsWith('105_Horn_of_Rings.par') ? HORN_OF_RINGS : (() => { throw new Error(path); })()),
+    };
+    const outcome = buildIncendiaEntry(105, '105-horn-of-rings', '/archive', fakeFs);
+    expect(outcome.status).toBe('live');
+    // first transform's translation was [0, 0, 1.0] pre-swap; post-swap Y and Z trade places.
+    expect(outcome.entry.params.slice(9, 12)).toEqual([0, 1, 0]);
   });
 });

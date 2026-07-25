@@ -212,6 +212,52 @@ export function classify(transforms) {
   return { plausible, ...best };
 }
 
+// ---------- default-camera framing: flat-attractor axis correction ----------
+// Some decoded attractors are genuinely flat -- every sampled point has near-zero variance on
+// one axis (confirmed on real day 105/Horn of Rings: Y ~ 1e-26, floating-point noise around
+// exact zero). The app's default camera looks along -Z with Y as the up/visible axis and Z as
+// depth, so a flat-Y attractor renders as a near-invisible edge-on line until the user drags to
+// rotate -- browser-verified: dragging to look top-down reveals the correct dense disk, exactly
+// matching the phase-0 spike's CPU thumbnail. Not a bug in the decode/compose, purely a default-
+// orientation problem. Fix: detect the flat axis and swap it into Z (depth) so the two axes with
+// real structure land in the default-visible X/Y plane -- a coordinate relabeling, not a change
+// to the attractor's actual shape.
+const FLAT_AXIS_RATIO = 0.1; // an axis under 10% of the largest span counts as "the flat one"
+
+// Returns 0 or 1 (the flat axis to swap with Z), or null if no axis is meaningfully flatter
+// than the others (most attractors don't need this).
+export function pickFlatAxisSwap(transforms) {
+  const { pts, n } = chaosGame(transforms);
+  if (n < 100) return null;
+  const spans = [0, 1, 2].map((axis) => {
+    let min = Infinity, max = -Infinity;
+    for (let i = 0; i < n; i++) { const v = pts[i * 3 + axis]; if (v < min) min = v; if (v > max) max = v; }
+    return max - min;
+  });
+  const maxSpan = Math.max(...spans);
+  if (maxSpan <= 0) return null;
+  const flatAxis = spans.findIndex((s) => s / maxSpan < FLAT_AXIS_RATIO);
+  return flatAxis === -1 || flatAxis === 2 ? null : flatAxis;
+}
+
+// Swaps axis `flatAxis` (0=X or 1=Y) with axis 2 (Z) throughout every transform: conjugates M
+// by the swap permutation (M'[i][j] = M[perm[i]][perm[j]]) and permutes t the same way, so the
+// SAME dynamical system keeps iterating correctly (the shared state must be permuted
+// consistently across every transform and every step, not just relabeled at the output) --
+// only the embedding orientation changes, never the attractor's intrinsic shape. Applying it
+// doesn't affect classify()'s verdict: the gate already tries all 3 projection planes and picks
+// the best, which is invariant to axis relabeling.
+export function swapTransformAxis(transforms, flatAxis) {
+  const perm = [0, 1, 2];
+  perm[flatAxis] = 2;
+  perm[2] = flatAxis;
+  return transforms.map(({ m, t, w }) => ({
+    m: perm.map((i) => perm.map((j) => m[i][j])),
+    t: perm.map((i) => t[i]),
+    w,
+  }));
+}
+
 // ---------- pipeline entry points ----------
 
 // Returns null only when the day has no .par file at all. Otherwise always returns
@@ -227,7 +273,9 @@ export function buildIncendiaEntry(day, slug, archiveRoot, fs) {
   if (p.transforms.length < 2) return { gen: p.gen, status: 'single-transform', entry: null };
   const cls = classify(p.transforms);
   if (!cls.plausible) return { gen: p.gen, status: 'implausible', entry: null };
-  const entry = { day, slug, system: 'incendia_ifs', matrices: p.transforms.length, params: composeIncendiaBlocks(p.transforms) };
+  const flatAxis = pickFlatAxisSwap(p.transforms);
+  const transforms = flatAxis === null ? p.transforms : swapTransformAxis(p.transforms, flatAxis);
+  const entry = { day, slug, system: 'incendia_ifs', matrices: transforms.length, params: composeIncendiaBlocks(transforms) };
   return { gen: p.gen, status: 'live', entry };
 }
 
