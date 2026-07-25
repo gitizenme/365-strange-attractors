@@ -303,7 +303,7 @@ export function buildIncendiaEntry(day, slug, archiveRoot, fs) {
   return { gen: p.gen, status: 'live', entry };
 }
 
-// Fills in live incendia_ifs entries for days that are currently static-only. Precedence:
+// Fills in live incendia_ifs/incendia_flow entries for days that are currently static-only. Precedence:
 // a day with an existing (non-static) Chaoscope entry is never touched -- shipped orbits
 // never change -- so buildIncendiaEntry is not even called for it (no wasted .par reads).
 export function applyIncendia(attractors, days, archiveRoot, fs) {

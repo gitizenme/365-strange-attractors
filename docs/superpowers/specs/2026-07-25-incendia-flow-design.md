@@ -59,7 +59,7 @@ Two further calibration-driven corrections, both required for correct results (f
 - **Skip depth 0 (the raw seed position).** Recording the untransformed random start pollutes the pool with the seed cube itself, not real attractor structure — this dominated the bounding box in initial testing, swamping out the genuine converged/converging points entirely. (This is why the depth list starts at 1, not 0.)
 - **The scale math must use a fixed reference derived from `length(t)`, not an auto-fit min/max of the sample.** Per §4's methodological note, auto-fitting rescales floating-point convergence noise to fill the frame. `sampleSettledTrajectory`'s existing `halfExtent`/`scale` computation *is* auto-fit (min/max of the sampled points) — reusing it unmodified here would silently reintroduce the trap. `estimateIncendiaFlowDisplay` computes its own scale directly from `length(t)`: `TARGET_HALF_EXTENT / (REFERENCE_MULTIPLIER * length(t))`, proposed `REFERENCE_MULTIPLIER = 3` (verified visually against the same three calibration days) — the sampled point pool is used only for the `SeedSpec`, not for deriving scale.
 
-`N`/`MIN_STEPS`/`MAX_STEPS` are starting values, further tunable visually during implementation the same way as `K` in §3 (distinct constants — no relation).
+`N` and the depth list `[1,2,4,8,16,32,64]` are starting values, further tunable visually during implementation the same way as `K` in §3 (distinct constants — no relation). (Implemented and shipped unchanged — see the plan's Task 7 verification: all three calibration-range days rendered correctly with these starting values, no retuning needed.)
 
 ## 6. UI changes
 
