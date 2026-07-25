@@ -99,8 +99,9 @@ export function transitionKind(
 // One canonical file-params → LiveAttractor-params mapping. ifs composes its 16-float file
 // blocks into the 13-float stride the GLSL consumes (weights normalized); polynomial_func pads
 // its 3 genuinely different raw lengths into the fixed 40-slot shape; everything else passes
-// through. Used by BOTH the open() construction path and the morph-target path — the two must
-// never disagree on shape.
+// through -- including incendia_ifs, whose pipeline output is already the composed stride-13
+// form (see families/incendia.ts's header). Used by BOTH the open() construction path and the
+// morph-target path — the two must never disagree on shape.
 export function toLiveParams(system: string, params: number[]): number[] {
   if (system === 'ifs') return composeIfsBlocks(params);
   if (system === 'polynomial_func') return normalizeFuncParams(params);
@@ -365,6 +366,15 @@ export function estimateIfsDisplay(fileParams: number[]): { scale: number; cente
   return sampleSettledTrajectory(step, s, 200, 4000);
 }
 
+// Incendia IFS: pipeline/incendia.mjs composes directly into the live stride-13 format (see
+// families/incendia.ts's header for why there's no separate raw form to compose from here,
+// unlike ifs) -- attractor.params IS what ifsCpuStep expects, no toLiveParams step needed.
+export function estimateIncendiaDisplay(params: number[]): { scale: number; centerX: number; centerY: number; centerZ: number; seed: SeedSpec } {
+  const s = { x: 0.1, y: 0.1, z: 0.1 };
+  const step = () => ifsCpuStep(params, s, Math.random);
+  return sampleSettledTrajectory(step, s, 200, 4000);
+}
+
 // Icon: mirrors icon.ts's glslStep (see its header for the formula). The map lives in the
 // x/y plane with |p| as height, so the trajectory is genuinely 3D for display purposes.
 export function estimateIconDisplay(params: number[]): { scale: number; centerX: number; centerY: number; centerZ: number; seed: SeedSpec } {
@@ -447,6 +457,7 @@ const DISPLAY_ESTIMATORS: Record<string, (params: number[]) => DisplayResult> = 
   polynomial_a: estimatePolynomialADisplay,
   polynomial_b: estimatePolynomialBDisplay,
   ifs: estimateIfsDisplay,
+  incendia_ifs: estimateIncendiaDisplay,
   icon: estimateIconDisplay,
   unravel: estimateUnravelDisplay,
   julia: estimateJuliaDisplay,

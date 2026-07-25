@@ -21,7 +21,16 @@ describe.skipIf(!existsSync(DATA))('attractors.json completeness', () => {
       }
     }
   });
-  it('in-scope days total 85', () => {
-    expect(attractors.filter(a => a.system !== 'static-only').length).toBe(85);
+  it('in-scope days total at least 85 (a floor, not an exact count — Incendia coverage in ' +
+     'phase 2c is best-effort and grows as the pipeline/gate improve; live count should never ' +
+     'regress below the pre-2c Chaoscope-only baseline)', () => {
+    expect(attractors.filter(a => a.system !== 'static-only').length).toBeGreaterThanOrEqual(85);
+  });
+  it('every incendia_ifs entry carries a matrices count consistent with its stride-13 params', () => {
+    for (const a of attractors) {
+      if (a.system !== 'incendia_ifs') continue;
+      expect(a.params.length % 13).toBe(0);
+      expect(a.matrices).toBe(a.params.length / 13);
+    }
   });
 });

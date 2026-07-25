@@ -4,6 +4,7 @@ import { execFileSync } from 'node:child_process';
 import { buildDays } from './manifest.mjs';
 import { makeDerivatives, buildAtlas } from './images.mjs';
 import { buildAttractors } from './attractors.mjs';
+import { applyIncendia } from './incendia.mjs';
 import { buildOgCard, buildFavicons } from './social.mjs';
 import { renderSitemap } from './sitemap.mjs';
 
@@ -65,10 +66,15 @@ for (const rp of ROUTE_PAGES) {
 writeFileSync(join(OUT, '404.html'), render404Page());
 console.log(`route pages: ${ROUTE_PAGES.length} written + 404 shell`);
 
-const attractors = buildAttractors(days, ARCHIVE, { readdirSync, readFileSync });
+const chaoscopeAttractors = buildAttractors(days, ARCHIVE, { readdirSync, readFileSync });
+const { attractors, stats: incendiaStats } = applyIncendia(chaoscopeAttractors, days, ARCHIVE, { readdirSync, readFileSync });
 writeFileSync(join(OUT, 'data', 'attractors.json'), JSON.stringify(attractors));
 const inScope = attractors.filter(a => a.system !== 'static-only').length;
 console.log(`attractors.json: ${attractors.length} entries, ${inScope} in-scope`);
+for (const gen of Object.keys(incendiaStats).sort()) {
+  const s = incendiaStats[gen];
+  console.log(`  incendia gen[${gen}]: ${s.total} total, ${s.parsed} parsed, ${s.plausible} live`);
+}
 
 if (force || !existsSync(join(OUT, 'og', 'card.jpg'))) {
   await buildOgCard(join(ARCHIVE, 'mosaic', '365_Moaic_No_Watermark.png'), join(OUT, 'og', 'card.jpg'));
