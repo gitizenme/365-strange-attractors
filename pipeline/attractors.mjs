@@ -4,6 +4,7 @@ export const IN_SCOPE_FAMILIES = new Set([
   'lorenz', 'lorenz_84', 'chaotic_flow', 'pickover',
   'polynomial_a', 'polynomial_b', 'polynomial_c', 'polynomial_func', 'polynomial_sprott',
   'icon', 'julia', 'ifs', 'unravel',
+  'incendia_ifs', // phase 2c — produced by pipeline/incendia.mjs, not this file's .csproj scan
 ]);
 
 export function parseCsproj(content) {

@@ -34,8 +34,11 @@ view {\r
 }\r
 `;
 
-const OUT_OF_SCOPE_INCENDIA = `attractor {\r
-\ttype incendia_ifs\r
+// a .csproj-format block with a family name that is deliberately not, and will never be, in
+// IN_SCOPE_FAMILIES (incendia_ifs is a real family since phase 2c, but sourced from .par, not
+// .csproj — this fixture just needs a name guaranteed to stay unrecognized).
+const OUT_OF_SCOPE_TYPE = `attractor {\r
+\ttype made_up_family\r
 \titerations 1000000\r
 \tparameters <1.5, -1.5>\r
 }\r
@@ -49,7 +52,7 @@ const MALFORMED = `attractor {\r
 describe('IN_SCOPE_FAMILIES', () => {
   it('has the expected family names', () => {
     expect([...IN_SCOPE_FAMILIES].sort()).toEqual([
-      'chaotic_flow', 'icon', 'ifs', 'julia', 'lorenz', 'lorenz_84', 'pickover',
+      'chaotic_flow', 'icon', 'ifs', 'incendia_ifs', 'julia', 'lorenz', 'lorenz_84', 'pickover',
       'polynomial_a', 'polynomial_b', 'polynomial_c', 'polynomial_func', 'polynomial_sprott', 'unravel',
     ].sort());
   });
@@ -73,7 +76,7 @@ describe('parseCsproj', () => {
     expect(parseCsproj(MALFORMED)).toBeNull();
   });
   it('still parses a recognized-format file even for an out-of-scope family (classification happens later)', () => {
-    expect(parseCsproj(OUT_OF_SCOPE_INCENDIA)).toEqual({ type: 'incendia_ifs', iterations: 1000000, params: [1.5, -1.5] });
+    expect(parseCsproj(OUT_OF_SCOPE_TYPE)).toEqual({ type: 'made_up_family', iterations: 1000000, params: [1.5, -1.5] });
   });
 });
 
@@ -101,7 +104,7 @@ describe('buildAttractors', () => {
     },
     readFileSync(path) {
       if (path.endsWith('001_Rose.csproj')) return CHAOTIC_FLOW_001;
-      if (path.endsWith('002_Incendia.csproj')) return OUT_OF_SCOPE_INCENDIA;
+      if (path.endsWith('002_Incendia.csproj')) return OUT_OF_SCOPE_TYPE;
       throw new Error(`unexpected file ${path}`);
     },
   };
