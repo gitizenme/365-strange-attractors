@@ -120,6 +120,20 @@ describe('computeShader scaffold (phase 2b)', () => {
     expect(src).toContain('vec4 next4 = stepAttractor');
     expect(src).toContain('gl_FragColor = vec4(next, next4.w);');
   });
+  it('adds no reseed branch when randomReseed is unset (every existing family)', () => {
+    const src = computeShader(fixed, 4);
+    expect(src).not.toContain('reseedRadius');
+  });
+  it('bakes chance and radiusMultiplier as GLSL float literals when randomReseed is set', () => {
+    const withReseed: AttractorFamily = {
+      system: 'r', paramCount: 13, isDiscreteMap: true,
+      randomReseed: { chance: 0.003, radiusMultiplier: 15 },
+      glslStep: `vec3 stepAttractor(vec3 p, float params[13]) { return p; }`,
+    };
+    const src = computeShader(withReseed, 13);
+    expect(src).toContain('cgRand(uv, uFrame * 7.0 + 3.0) < 0.003000');
+    expect(src).toContain('15.000000 * length(vec3(params[9], params[10], params[11]))');
+  });
 });
 
 import { composeIfsBlocks, ifsCpuStep } from '../src/attractor/families/ifs';

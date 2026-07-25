@@ -17,6 +17,14 @@ export interface AttractorFamily {
   disturbStride?: { stride: number; offsets: number[] };
   /** step signature is vec4→vec4 and the texture's alpha channel persists the 4th state component (julia's quaternion k). */
   stateW?: boolean;
+  /** Per-step probability [0,1] a particle respawns at a fresh random position, independent of
+   * the existing NaN/divergence rescue -- unset for every family except incendia_flow, which
+   * uses it so a contractive single-transform map gets continuous turnover instead of collapsing
+   * to a static point (see families/incendia.ts). radiusMultiplier scales the reseed cube's
+   * half-width as a multiple of length(t), the step's own translation -- read directly from the
+   * params array at runtime, no new uniform needed. Baked as GLSL literals at shader-compile
+   * time (computeShader is called once per LiveAttractor construction), not a runtime uniform. */
+  randomReseed?: { chance: number; radiusMultiplier: number };
 }
 
 const RENDER_VERTEX = /* glsl */ `
@@ -64,6 +72,7 @@ export function computeShader(family: AttractorFamily, paramCount: number): stri
   }
   const step = family.glslStep.replaceAll('__N__', String(paramCount));
   const w = family.stateW === true;
+  const reseed = family.randomReseed;
   return /* glsl */ `
     uniform float uParamsA[${paramCount}];
     uniform float uParamsB[${paramCount}];
@@ -95,6 +104,15 @@ export function computeShader(family: AttractorFamily, paramCount: number): stri
         gl_FragColor = vec4(rx, ry, rz, ${w ? '0.0' : '1.0'});
         return;
       }
+      ${reseed ? `
+      if (cgRand(uv, uFrame * 7.0 + 3.0) < ${reseed.chance.toFixed(6)}) {
+        float reseedRadius = ${reseed.radiusMultiplier.toFixed(6)} * length(vec3(params[9], params[10], params[11]));
+        float rx2 = (fract(sin(dot(uv, vec2(12.9898, 78.233))) * 43758.5453) - 0.5) * 2.0 * reseedRadius;
+        float ry2 = (fract(sin(dot(uv, vec2(93.9898, 67.345))) * 24634.6345) - 0.5) * 2.0 * reseedRadius;
+        float rz2 = (fract(sin(dot(uv, vec2(41.2398, 289.123))) * 12345.6789) - 0.5) * 2.0 * reseedRadius;
+        gl_FragColor = vec4(rx2, ry2, rz2, 1.0);
+        return;
+      }` : ''}
       gl_FragColor = ${w ? 'vec4(next, next4.w)' : 'vec4(next, 1.0)'};
     }
   `;
