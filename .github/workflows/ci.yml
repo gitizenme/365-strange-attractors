@@ -55,6 +55,12 @@ jobs:
             cp "dist/$rel" "deploy/$rel"
           done
 
+          # Day pages and route shells in the deploy repo are pipeline-generated
+          # and cannot be rebuilt here. Restamp every HTML file to this build's
+          # content-hashed bundle names so nothing keeps referencing the
+          # assets/ files the rsync above just replaced.
+          node pipeline/stamp.mjs deploy
+
       - name: Commit and push
         working-directory: deploy
         # Commit message goes through env, never ${{ }} interpolation into the

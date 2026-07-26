@@ -52,3 +52,11 @@ Two channels, both required for a full release:
 2. **`scripts/deploy.sh`** ships the whole built `dist/` (including gitignored pipeline
    output: images, day pages, route shells) from a machine that has run `npm run pipeline`.
    One atomic rsync push so client and data always match.
+
+Cache busting: bundle filenames are content-hashed and `/data/*.json` fetches carry a
+per-build `?v=` id, so a deploy invalidates browser caches by changing URLs instead of
+hoping clients revalidate (GitHub Pages pins `Cache-Control: max-age=600`, and iOS Safari
+may serve cached subresources indefinitely). HTML shells stay at stable URLs and are
+rewritten to the current hashed names by `pipeline/stamp.mjs` — `npm run build` stamps
+`dist/`, and the CI deploy restamps the deploy repo's pipeline-generated pages it cannot
+rebuild.

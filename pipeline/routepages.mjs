@@ -3,6 +3,9 @@ import { metaTags, esc, SITE_TITLE, SITE_DESCRIPTION, CARD_IMAGE } from './site.
 // Static shells for the three veil destinations: real 200s with real metadata for crawlers and
 // link previews, regardless of how the host handles unknown paths. The client app takes over on
 // load exactly as it does on day pages (the .static-nav is removed at boot).
+//
+// All shells reference the placeholder bundle names /assets/app.js + /assets/index.css;
+// pipeline/stamp.mjs rewrites them to the build's content-hashed names (see that file).
 export const ROUTE_PAGES = [
   { path: '/attractors/', title: `Attractors — ${SITE_TITLE}`, description: 'Browse all 365 strange attractors, one for every day of 2010.' },
   { path: '/sound/', title: `Sound — ${SITE_TITLE}`, description: 'Music from the attractors — the Chaos of Zen discography and the sonification of all 365 days.' },

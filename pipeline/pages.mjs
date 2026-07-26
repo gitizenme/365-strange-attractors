@@ -1,6 +1,10 @@
 import { esc, metaTags } from './site.mjs';
 import { STATIC_NAV } from './routepages.mjs';
 
+// Shells reference the stable placeholder names /assets/app.js +
+// /assets/index.css; the bundle hash is unknowable at pipeline time, so
+// pipeline/stamp.mjs rewrites them to the content-hashed names at build
+// (dist/) and deploy (CI restamp of the deploy repo).
 export function renderPiecePage(a) {
   const num = String(a.day).padStart(3, '0');
   const t = esc(a.title);

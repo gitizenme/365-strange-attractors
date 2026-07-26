@@ -11,7 +11,7 @@ describe('renderPiecePage', () => {
     expect(html).toContain('src="/images/1024/042-spirality.jpg"');
     expect(html).toContain('alt="Spirality — strange attractor, day 42 of 365, 2010"');
     expect(html).toContain('src="/assets/app.js"');
-    expect(html).toContain('href="/assets/index.css"'); // must match vite's actual build output name
+    expect(html).toContain('href="/assets/index.css"'); // placeholder name — stamp.mjs rewrites to the hashed build name
   });
   it('has absolute og/twitter/canonical metadata', () => {
     expect(html).toContain('<meta property="og:title" content="Spirality — 042/365 Strange Attractors" />');
