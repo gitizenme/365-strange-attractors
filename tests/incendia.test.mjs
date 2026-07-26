@@ -215,6 +215,49 @@ describe('classify (plausibility gate)', () => {
     const b = chaosGame(transforms, { iters: 1000 });
     expect(Array.from(a.pts)).toEqual(Array.from(b.pts));
   });
+
+  // Gate recalibration regression (2026-07-25, github.com/gitizenme/365-strange-attractors/
+  // issues/24): minD lowered from 1.3 to 1.05. D alone can't separate a genuine thin curling
+  // fractal curve from a degenerate straight line -- both score low box-counting dimension --
+  // but the two real clusters turn out to be robustly separated, just not at the old threshold:
+  // confirmed lines sit at D 0.93-1.03 (day 353 below, real fixture), confirmed curves start at
+  // D 1.058 (day 139 below, real fixture, the lowest of 12 visually-confirmed recovered days).
+  it('accepts real day 139 (Tentacles) -- the lowest-D visually-confirmed genuine curve', () => {
+    const TENTACLES = crlf([
+      ...HEADER('4 1', 2),
+      '0.710686 0.216057 0.052547 -0.208593',
+      '0.708765 -0.093043 -0.077010 0.074079',
+      '0.736952 -1.173144 0.017315 -1.619702',
+      '0.900000',
+      '-0.060868 -0.161465 -0.218473 0.233374',
+      '0.083528 -0.126752 0.139061 -0.210852',
+      '0.117089 0.496276 -0.056100 0.023734',
+      '0.100000',
+    ]);
+    const { transforms } = parsePar(TENTACLES);
+    const result = classify(transforms);
+    expect(result.plausible).toBe(true);
+    expect(result.D).toBeGreaterThanOrEqual(1.05);
+    expect(result.D).toBeLessThan(1.1); // confirms this exercises the boundary, not comfortably above it
+  });
+
+  it('still rejects real day 353 (Glider) -- a degenerate straight line, D just below the new floor', () => {
+    const GLIDER = crlf([
+      ...HEADER('7 1', 2),
+      '1.000000 0.000000 0.000000 0.000000',
+      '1.000000 0.000000 0.000000 0.000000',
+      '1.000000 -0.882633 0.000000 -0.413507',
+      '0.500000',
+      '1.000000 0.000000 0.000000 0.000000',
+      '1.000000 0.000000 0.000000 0.000000',
+      '1.000000 0.670520 0.000000 0.698484',
+      '0.500000',
+    ]);
+    const { transforms } = parsePar(GLIDER);
+    const result = classify(transforms);
+    expect(result.plausible).toBe(false);
+    expect(result.D).toBeLessThan(1.05);
+  });
 });
 
 describe('buildIncendiaEntry', () => {
