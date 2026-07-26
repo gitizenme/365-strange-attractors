@@ -1,3 +1,5 @@
+import { dataUrl } from './data';
+
 export interface Artist {
   name: string;
   bio: string;
@@ -31,7 +33,7 @@ export interface MusicData {
 }
 
 export async function loadMusicData(): Promise<MusicData> {
-  return fetch('/data/music.json').then(r => r.json());
+  return fetch(dataUrl('/data/music.json')).then(r => r.json());
 }
 
 export function platformLinks(release: Release): { label: string; url: string }[] {
