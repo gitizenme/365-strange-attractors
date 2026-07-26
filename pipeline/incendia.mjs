@@ -179,7 +179,23 @@ export function isoperimetricRatio(grid, S) {
   return area ? (perim * perim) / area : 0;
 }
 
-const GATE = { minD: 1.3, minCoverage: 0.003, minIso: 300, maxIso: 12000 };
+// minD recalibrated 2026-07-25 (see github.com/gitizenme/365-strange-attractors/issues/24):
+// the original 1.3 floor wrongly excluded genuine thin, self-similar fractal curves (real
+// examples: days 139/147/149/154/158/120/202/281/330/334/337/365 -- confirmed by rendering
+// and looking, not just by the number) because a thin curling curve that never fills 2D area
+// scores nearly as low a box-counting dimension as a degenerate straight line -- D alone
+// cannot tell them apart; a hand-authored R^2-of-the-log-log-fit discriminator was tried and
+// rejected (only 5 box-count scale points, so even a literal straight line fits at R^2>0.999,
+// no separation at all). What actually separates them is NOT a new metric: the isoperimetric
+// band already does the real discrimination (it's what rejects the divergent/noisy and
+// solid-blob clusters at every D), so minD only needs to sit above the degenerate-line
+// cluster's ceiling. Confirmed straight lines cluster tightly at D 0.93-1.03 (stable across
+// 400k vs 1.5M iterations); confirmed genuine curves start at D 1.058, also stable across
+// iteration counts -- the two clusters are genuinely, robustly separated, just not at 1.3.
+// 1.05 sits in that stable gap. Recovers 12/51 previously-"implausible" days, all individually
+// visually confirmed against their 2010 renders; zero previously-correctly-excluded days
+// (blobs, noise, lines) newly pass -- the iso band alone still excludes every one of them.
+const GATE = { minD: 1.05, minCoverage: 0.003, minIso: 300, maxIso: 12000 };
 
 // De-flattens live stride-13 params (row-major M(9), t(3), w(1)) back into {m,t,w} triples --
 // the inverse of composeIncendiaBlocks. Lets classify() run against already-composed live
