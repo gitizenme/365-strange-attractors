@@ -141,25 +141,28 @@ export async function runSync({ fetchJson, appleToken, youtubeKey, artistId, upl
 
   const existingIds = new Set([...music.albums, ...music.singles, ...music.musicVideos].map(appleKey).filter(Boolean));
   const fresh = (additions) => additions.filter((e) => !existingIds.has(appleKey(e)));
+  const freshAlbums = fresh(albs.additions);
+  const freshSingles = fresh(sngs.additions);
+  const freshVideos = fresh(vids.additions);
 
   const next = {
     ...music,
-    albums: [...music.albums, ...fresh(albs.additions)],
-    singles: [...music.singles, ...fresh(sngs.additions)],
-    musicVideos: sortVideos([...music.musicVideos, ...fresh(vids.additions)]),
+    albums: [...music.albums, ...freshAlbums],
+    singles: [...music.singles, ...freshSingles],
+    musicVideos: sortVideos([...music.musicVideos, ...freshVideos]),
   };
 
   const appleVideoNums = new Set(appleVideos.map((v) => videoNumber(v.attributes.name)).filter(Boolean));
   const existingVideoNums = new Set(music.musicVideos.map((v) => videoNumber(v.title)).filter(Boolean));
   const ytOnly = Object.keys(ytMap).filter((n) => !appleVideoNums.has(n) && !existingVideoNums.has(n));
 
-  const changed = fresh(vids.additions).length + fresh(albs.additions).length + fresh(sngs.additions).length > 0;
+  const changed = freshVideos.length + freshAlbums.length + freshSingles.length > 0;
   const lines = [];
   lines.push(`## Catalogue sync`, '');
   const list = (label, arr, f) => arr.length && lines.push(`**${label} (${arr.length}):** ${arr.map(f).join(', ')}`);
-  list('New albums', albs.additions, (a) => a.title);
-  list('New singles', sngs.additions, (s) => s.title);
-  list('New videos', vids.additions, (v) => v.title);
+  list('New albums', freshAlbums, (a) => a.title);
+  list('New singles', freshSingles, (s) => s.title);
+  list('New videos', freshVideos, (v) => v.title);
   list('On YouTube, awaiting Apple Music', ytOnly.map((n) => ({ n })), (x) => x.n);
   list('In music.json but not in the Apple API — review', [...albs.orphans, ...sngs.orphans, ...vids.orphans], (e) => e.title);
   if (!changed) lines.push('Catalogue already up to date. No additions.');
