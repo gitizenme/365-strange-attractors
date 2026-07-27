@@ -23,9 +23,9 @@ describe.skipIf(!existsSync(DATA))('pipeline output completeness', () => {
     const atlas = JSON.parse(readFileSync('public/data/atlas.json', 'utf8'));
     for (const a of art) expect(atlas.index[a.slug]).toBeGreaterThanOrEqual(0);
     expect(atlas.files.small).toBe('/images/atlas-32.webp');
-    expect(atlas.files.full).toBe('/images/atlas-128.webp');
+    expect(atlas.files.full).toBe('/images/atlas-192.webp');
     expect(existsSync('public/images/atlas-32.webp')).toBe(true);
-    expect(existsSync('public/images/atlas-128.webp')).toBe(true);
+    expect(existsSync('public/images/atlas-192.webp')).toBe(true);
     expect(existsSync('public/images/atlas.png')).toBe(false);
   });
 });
