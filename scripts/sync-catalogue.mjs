@@ -92,3 +92,73 @@ export function sortVideos(videos) {
 export function formatMusicJson(obj) {
   return `${JSON.stringify(obj, null, 2)}\n`;
 }
+
+async function fetchAppleAll(fetchJson, startUrl, headers) {
+  let url = startUrl;
+  const out = [];
+  while (url) {
+    const page = await fetchJson(url, headers);
+    out.push(...(page.data || []));
+    url = page.next ? `https://api.music.apple.com${page.next}` : null;
+  }
+  return out;
+}
+
+async function fetchYouTubeAll(fetchJson, playlistId, key) {
+  const out = [];
+  let token = '';
+  do {
+    const url = `https://www.googleapis.com/youtube/v3/playlistItems?part=snippet,contentDetails`
+      + `&playlistId=${playlistId}&maxResults=50&key=${key}${token ? `&pageToken=${token}` : ''}`;
+    const page = await fetchJson(url);
+    out.push(...(page.items || []));
+    token = page.nextPageToken || '';
+  } while (token);
+  return out;
+}
+
+const appleKey = (e) => extractAppleId(e.appleMusicUrl);
+
+export async function runSync({ fetchJson, appleToken, youtubeKey, artistId, uploadsPlaylistId, music }) {
+  const headers = { Authorization: `Bearer ${appleToken}` };
+  const artist = await fetchJson(
+    `https://api.music.apple.com/v1/catalog/us/artists/${artistId}?views=full-albums,singles`, headers);
+  const views = artist.data?.[0]?.views || {};
+  const appleAlbums = views['full-albums']?.data || [];
+  const appleSingles = views.singles?.data || [];
+  const appleVideos = await fetchAppleAll(fetchJson,
+    `https://api.music.apple.com/v1/catalog/us/artists/${artistId}/music-videos?limit=100`, headers);
+  const ytItems = await fetchYouTubeAll(fetchJson, uploadsPlaylistId, youtubeKey);
+  const ytMap = youtubeMapByNumber(ytItems);
+
+  const incVideos = appleVideos.map((v) => buildVideoEntry(v, ytMap));
+  const incAlbums = appleAlbums.map(buildAlbumEntry);
+  const incSingles = appleSingles.map(buildSingleEntry);
+
+  const vids = reconcile(music.musicVideos, incVideos, appleKey);
+  const albs = reconcile(music.albums, incAlbums, appleKey);
+  const sngs = reconcile(music.singles, incSingles, appleKey);
+
+  const next = {
+    ...music,
+    albums: [...music.albums, ...albs.additions],
+    singles: [...music.singles, ...sngs.additions],
+    musicVideos: sortVideos([...music.musicVideos, ...vids.additions]),
+  };
+
+  const appleVideoNums = new Set(appleVideos.map((v) => videoNumber(v.attributes.name)).filter(Boolean));
+  const existingVideoNums = new Set(music.musicVideos.map((v) => videoNumber(v.title)).filter(Boolean));
+  const ytOnly = Object.keys(ytMap).filter((n) => !appleVideoNums.has(n) && !existingVideoNums.has(n));
+
+  const changed = vids.additions.length + albs.additions.length + sngs.additions.length > 0;
+  const lines = [];
+  lines.push(`## Catalogue sync`, '');
+  const list = (label, arr, f) => arr.length && lines.push(`**${label} (${arr.length}):** ${arr.map(f).join(', ')}`);
+  list('New albums', albs.additions, (a) => a.title);
+  list('New singles', sngs.additions, (s) => s.title);
+  list('New videos', vids.additions, (v) => v.title);
+  list('On YouTube, awaiting Apple Music', ytOnly.map((n) => ({ n })), (x) => x.n);
+  list('In music.json but not in the Apple API — review', [...albs.orphans, ...sngs.orphans, ...vids.orphans], (e) => e.title);
+  if (!changed) lines.push('Catalogue already up to date. No additions.');
+  return { music: next, summary: lines.join('\n') + '\n', changed };
+}

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import crypto from 'node:crypto';
-import { buildDeveloperToken, extractAppleId, videoNumber, fillArtwork, youtubeMapByNumber, buildVideoEntry, buildAlbumEntry, buildSingleEntry, reconcile, sortVideos, formatMusicJson } from '../scripts/sync-catalogue.mjs';
+import { buildDeveloperToken, extractAppleId, videoNumber, fillArtwork, youtubeMapByNumber, buildVideoEntry, buildAlbumEntry, buildSingleEntry, reconcile, sortVideos, formatMusicJson, runSync } from '../scripts/sync-catalogue.mjs';
 
 const b64urlToJson = (s) => JSON.parse(Buffer.from(s, 'base64url').toString('utf8'));
 
@@ -118,5 +118,54 @@ describe('formatMusicJson', () => {
     const out = formatMusicJson({ a: 1, b: 'café' });
     expect(out).toBe('{\n  "a": 1,\n  "b": "café"\n}\n');
     expect(JSON.parse(out)).toEqual({ a: 1, b: 'café' });
+  });
+});
+
+function makeFetch(routes) {
+  // routes: array of [substring, responseObject]; first match wins
+  return async (url) => {
+    for (const [needle, resp] of routes) if (url.includes(needle)) return resp;
+    throw new Error(`unexpected url ${url}`);
+  };
+}
+
+describe('runSync', () => {
+  it('adds new Apple entries, matches youtube, reports orphans and youtube-only', async () => {
+    const music = {
+      artist: { name: 'Chaos of Zen' },
+      albums: [{ title: 'A1', appleMusicUrl: 'https://music.apple.com/us/album/a/100' }],
+      singles: [{ title: 'S1', type: 'single', appleMusicUrl: 'https://music.apple.com/us/album/s/200' }],
+      musicVideos: [{ title: '52.01', type: 'video', appleMusicUrl: 'https://music.apple.com/us/music-video/52-01/300' }],
+    };
+    const art = { url: 'https://img/{w}x{h}bb.jpg' };
+    const fetchJson = makeFetch([
+      ['/artists/424257434?views', { data: [{ views: {
+        'full-albums': { data: [
+          { attributes: { name: 'A1', url: 'https://music.apple.com/us/album/a/100', artwork: art, releaseDate: '2014', trackCount: 5 } },
+          { attributes: { name: 'A2', url: 'https://music.apple.com/us/album/a/101', artwork: art, releaseDate: '2015', trackCount: 7 } },
+        ] },
+        singles: { data: [
+          { attributes: { name: 'S1', url: 'https://music.apple.com/us/album/s/200', artwork: art, releaseDate: '2021' } },
+        ] },
+      } }] }],
+      ['/music-videos', { data: [
+        { attributes: { name: '52.01', url: 'https://music.apple.com/us/music-video/52-01/300', artwork: art, releaseDate: '2022-01-01' } },
+        { attributes: { name: '52.02', url: 'https://music.apple.com/us/music-video/52-02/301', artwork: art, releaseDate: '2022-02-01' } },
+      ] }],
+      ['playlistItems', { items: [
+        { snippet: { title: 'Chaos of Zen - 52.02', resourceId: { videoId: 'YT2' } } },
+        { snippet: { title: 'Chaos of Zen - 52.23', resourceId: { videoId: 'YT23' } } },
+      ] }],
+    ]);
+
+    const res = await runSync({ fetchJson, appleToken: 't', youtubeKey: 'k',
+      artistId: '424257434', uploadsPlaylistId: 'UU36M5xtxSc9S2bw4NgSM_zA', music });
+
+    expect(res.changed).toBe(true);
+    expect(res.music.albums.map((a) => a.title)).toEqual(['A1', 'A2']);       // A2 added
+    expect(res.music.musicVideos.map((v) => v.title)).toEqual(['52.01', '52.02']); // 52.02 added, sorted
+    const v2 = res.music.musicVideos.find((v) => v.title === '52.02');
+    expect(v2.youtubeUrl).toBe('https://youtube.com/watch?v=YT2');            // matched
+    expect(res.summary).toContain('52.23');                                    // youtube-only flagged
   });
 });
