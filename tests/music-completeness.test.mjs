@@ -29,19 +29,17 @@ describe.skipIf(!existsSync(DATA))('music.json completeness', () => {
     }
   });
 
-  it('has the full Apple Music video catalogue, nearly all matched to a YouTube URL', () => {
-    // The Apple Music catalogue holds 51 music videos (52.01-52.52 minus 52.23, which exists only
-    // on YouTube and so has no Apple URL to anchor an entry). 52.29 is the mirror case — on Apple
-    // but absent from the YouTube playlist — so it is the one entry without a youtubeUrl.
+  it('has the full Apple Music video catalogue, every one matched to a Vevo YouTube URL', () => {
+    // 51 Apple Music videos (52.01-52.52 minus 52.23, which is Vevo-only so has no Apple URL to
+    // anchor an entry). Per-video YouTube links point to the Vevo channel (@chaosofzenvevo3348),
+    // which carries the full run including 52.29 — so every entry now has a youtubeUrl.
     expect(music.musicVideos).toHaveLength(51);
     for (const r of music.musicVideos) {
       expect(r.type).toBe('video');
       expect(r.artworkUrl).toMatch(URL_RE);
       expect(r.appleMusicUrl).toMatch(URL_RE);
-      if (r.youtubeUrl !== undefined) expect(r.youtubeUrl).toMatch(URL_RE);
+      expect(r.youtubeUrl, `${r.title} should have a YouTube URL`).toMatch(URL_RE);
     }
-    const withoutYouTube = music.musicVideos.filter((r) => r.youtubeUrl === undefined);
-    expect(withoutYouTube.map((r) => r.title)).toEqual(['52.29']);
   });
 
   it('has more than the 7-item preview count of singles/EPs, each well-formed', () => {
