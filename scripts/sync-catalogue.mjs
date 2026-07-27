@@ -88,3 +88,7 @@ export function sortVideos(videos) {
     return 0;
   });
 }
+
+export function formatMusicJson(obj) {
+  return `${JSON.stringify(obj, null, 2)}\n`;
+}

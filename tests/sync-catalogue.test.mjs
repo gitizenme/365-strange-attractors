@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import crypto from 'node:crypto';
-import { buildDeveloperToken, extractAppleId, videoNumber, fillArtwork, youtubeMapByNumber, buildVideoEntry, buildAlbumEntry, buildSingleEntry, reconcile, sortVideos } from '../scripts/sync-catalogue.mjs';
+import { buildDeveloperToken, extractAppleId, videoNumber, fillArtwork, youtubeMapByNumber, buildVideoEntry, buildAlbumEntry, buildSingleEntry, reconcile, sortVideos, formatMusicJson } from '../scripts/sync-catalogue.mjs';
 
 const b64urlToJson = (s) => JSON.parse(Buffer.from(s, 'base64url').toString('utf8'));
 
@@ -110,5 +110,13 @@ describe('sortVideos', () => {
   it('orders by 52.NN ascending', () => {
     const out = sortVideos([{ title: '52.03' }, { title: '52.01' }, { title: '52.02' }]);
     expect(out.map((v) => v.title)).toEqual(['52.01', '52.02', '52.03']);
+  });
+});
+
+describe('formatMusicJson', () => {
+  it('uses 2-space indent, trailing newline, unescaped non-ascii, and round-trips', () => {
+    const out = formatMusicJson({ a: 1, b: 'café' });
+    expect(out).toBe('{\n  "a": 1,\n  "b": "café"\n}\n');
+    expect(JSON.parse(out)).toEqual({ a: 1, b: 'café' });
   });
 });
