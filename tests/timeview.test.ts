@@ -5,17 +5,17 @@ describe('spiralPosition', () => {
   it('starts at top with inner radius', () => {
     const p = spiralPosition(1);
     expect(p.x).toBeCloseTo(0, 5);
-    expect(p.y).toBeCloseTo(8, 5);
+    expect(p.y).toBeCloseTo(12, 5);
   });
   it('ends at outer radius after 3 turns (top again)', () => {
     const p = spiralPosition(365);
     expect(p.x).toBeCloseTo(0, -1);
-    expect(p.y).toBeCloseTo(50, 0);
+    expect(p.y).toBeCloseTo(75, 0);
   });
   it('stays within world bounds', () => {
     for (let d = 1; d <= 365; d++) {
       const p = spiralPosition(d);
-      expect(Math.hypot(p.x, p.y)).toBeLessThanOrEqual(50.01);
+      expect(Math.hypot(p.x, p.y)).toBeLessThanOrEqual(75.01);
     }
   });
   it('radius grows monotonically', () => {
