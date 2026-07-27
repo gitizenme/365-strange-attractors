@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import crypto from 'node:crypto';
-import { buildDeveloperToken, extractAppleId, videoNumber, fillArtwork, youtubeMapByNumber } from '../scripts/sync-catalogue.mjs';
+import { buildDeveloperToken, extractAppleId, videoNumber, fillArtwork, youtubeMapByNumber, buildVideoEntry, buildAlbumEntry, buildSingleEntry } from '../scripts/sync-catalogue.mjs';
 
 const b64urlToJson = (s) => JSON.parse(Buffer.from(s, 'base64url').toString('utf8'));
 
@@ -53,5 +53,43 @@ describe('youtubeMapByNumber', () => {
     const map = youtubeMapByNumber(items);
     expect(map['52.01']).toBe('https://youtube.com/watch?v=AAA');
     expect(map['52.15']).toBe('https://youtube.com/watch?v=CCC');
+  });
+});
+
+describe('buildVideoEntry', () => {
+  const appleVideo = { attributes: {
+    name: '52.29', url: 'https://music.apple.com/us/music-video/52-29/1634973753',
+    artwork: { url: 'https://x/{w}x{h}bb.jpg' }, releaseDate: '2021-05-14' } };
+
+  it('maps Apple fields and attaches youtube when matched', () => {
+    expect(buildVideoEntry(appleVideo, { '52.29': 'https://youtube.com/watch?v=IFHfhA0lKb4' })).toEqual({
+      title: '52.29', type: 'video', year: 2021,
+      artworkUrl: 'https://x/1200x1200bb.jpg',
+      appleMusicUrl: 'https://music.apple.com/us/music-video/52-29/1634973753',
+      youtubeUrl: 'https://youtube.com/watch?v=IFHfhA0lKb4',
+    });
+  });
+  it('omits youtubeUrl when there is no match', () => {
+    const e = buildVideoEntry(appleVideo, {});
+    expect('youtubeUrl' in e).toBe(false);
+  });
+});
+
+describe('buildAlbumEntry / buildSingleEntry', () => {
+  const appleAlbum = { attributes: {
+    name: 'Random Acts of Ambients Vol. 1',
+    url: 'https://music.apple.com/us/album/x/921794668',
+    artwork: { url: 'https://y/{w}x{h}bb.jpg' }, releaseDate: '2014', trackCount: 10 } };
+  it('builds album with trackCount', () => {
+    expect(buildAlbumEntry(appleAlbum)).toEqual({
+      title: 'Random Acts of Ambients Vol. 1', year: 2014, trackCount: 10,
+      artworkUrl: 'https://y/1200x1200bb.jpg',
+      appleMusicUrl: 'https://music.apple.com/us/album/x/921794668',
+    });
+  });
+  it('builds single with type single and no trackCount', () => {
+    const s = buildSingleEntry(appleAlbum);
+    expect(s.type).toBe('single');
+    expect('trackCount' in s).toBe(false);
   });
 });

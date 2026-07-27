@@ -41,3 +41,32 @@ export function youtubeMapByNumber(items) {
   }
   return byNum;
 }
+
+const yearOf = (releaseDate) => Number(String(releaseDate || '').slice(0, 4)) || null;
+
+export function buildVideoEntry(appleVideo, youtubeMap) {
+  const a = appleVideo.attributes;
+  const entry = {
+    title: a.name, type: 'video', year: yearOf(a.releaseDate),
+    artworkUrl: fillArtwork(a.artwork.url), appleMusicUrl: a.url,
+  };
+  const yt = youtubeMap[videoNumber(a.name)];
+  if (yt) entry.youtubeUrl = yt;
+  return entry;
+}
+
+export function buildAlbumEntry(appleAlbum) {
+  const a = appleAlbum.attributes;
+  return {
+    title: a.name, year: yearOf(a.releaseDate), trackCount: a.trackCount,
+    artworkUrl: fillArtwork(a.artwork.url), appleMusicUrl: a.url,
+  };
+}
+
+export function buildSingleEntry(appleAlbum) {
+  const a = appleAlbum.attributes;
+  return {
+    title: a.name, type: 'single', year: yearOf(a.releaseDate),
+    artworkUrl: fillArtwork(a.artwork.url), appleMusicUrl: a.url,
+  };
+}
