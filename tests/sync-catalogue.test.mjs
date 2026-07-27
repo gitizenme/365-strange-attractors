@@ -168,4 +168,33 @@ describe('runSync', () => {
     expect(v2.youtubeUrl).toBe('https://youtube.com/watch?v=YT2');            // matched
     expect(res.summary).toContain('52.23');                                    // youtube-only flagged
   });
+
+  it('does not add an entry to a different collection when Apple misclassifies an id already curated elsewhere', async () => {
+    const music = {
+      artist: { name: 'Chaos of Zen' },
+      albums: [],
+      singles: [{ title: 'S200', type: 'single', appleMusicUrl: 'https://music.apple.com/us/album/s/200' }],
+      musicVideos: [],
+    };
+    const art = { url: 'https://img/{w}x{h}bb.jpg' };
+    const fetchJson = makeFetch([
+      ['/artists/424257434?views', { data: [{ views: {
+        'full-albums': { data: [
+          // Apple misclassifies id 200 (curated as a single) as a full album:
+          { attributes: { name: 'S200', url: 'https://music.apple.com/us/album/s/200', artwork: art, releaseDate: '2021', trackCount: 1 } },
+          { attributes: { name: 'A101', url: 'https://music.apple.com/us/album/a/101', artwork: art, releaseDate: '2015', trackCount: 7 } },
+        ] },
+        singles: { data: [] },
+      } }] }],
+      ['/music-videos', { data: [] }],
+      ['playlistItems', { items: [] }],
+    ]);
+
+    const res = await runSync({ fetchJson, appleToken: 't', youtubeKey: 'k',
+      artistId: '424257434', uploadsPlaylistId: 'UU36M5xtxSc9S2bw4NgSM_zA', music });
+
+    expect(res.music.albums.map((a) => extractAppleId(a.appleMusicUrl))).toEqual(['101']); // only the genuinely new album is added
+    const allIds = [...res.music.albums, ...res.music.singles, ...res.music.musicVideos].map((e) => extractAppleId(e.appleMusicUrl));
+    expect(new Set(allIds).size).toBe(allIds.length); // no Apple id appears in more than one collection
+  });
 });

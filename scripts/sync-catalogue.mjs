@@ -139,18 +139,21 @@ export async function runSync({ fetchJson, appleToken, youtubeKey, artistId, upl
   const albs = reconcile(music.albums, incAlbums, appleKey);
   const sngs = reconcile(music.singles, incSingles, appleKey);
 
+  const existingIds = new Set([...music.albums, ...music.singles, ...music.musicVideos].map(appleKey).filter(Boolean));
+  const fresh = (additions) => additions.filter((e) => !existingIds.has(appleKey(e)));
+
   const next = {
     ...music,
-    albums: [...music.albums, ...albs.additions],
-    singles: [...music.singles, ...sngs.additions],
-    musicVideos: sortVideos([...music.musicVideos, ...vids.additions]),
+    albums: [...music.albums, ...fresh(albs.additions)],
+    singles: [...music.singles, ...fresh(sngs.additions)],
+    musicVideos: sortVideos([...music.musicVideos, ...fresh(vids.additions)]),
   };
 
   const appleVideoNums = new Set(appleVideos.map((v) => videoNumber(v.attributes.name)).filter(Boolean));
   const existingVideoNums = new Set(music.musicVideos.map((v) => videoNumber(v.title)).filter(Boolean));
   const ytOnly = Object.keys(ytMap).filter((n) => !appleVideoNums.has(n) && !existingVideoNums.has(n));
 
-  const changed = vids.additions.length + albs.additions.length + sngs.additions.length > 0;
+  const changed = fresh(vids.additions).length + fresh(albs.additions).length + fresh(sngs.additions).length > 0;
   const lines = [];
   lines.push(`## Catalogue sync`, '');
   const list = (label, arr, f) => arr.length && lines.push(`**${label} (${arr.length}):** ${arr.map(f).join(', ')}`);
@@ -168,7 +171,7 @@ import { fileURLToPath } from 'node:url';
 
 async function fetchJsonReal(url, headers) {
   const res = await fetch(url, { headers });
-  if (!res.ok) throw new Error(`${res.status} ${res.statusText} for ${url}: ${(await res.text()).slice(0, 300)}`);
+  if (!res.ok) throw new Error(`${res.status} ${res.statusText} for ${url.split('?')[0]}: ${(await res.text()).slice(0, 300)}`);
   return res.json();
 }
 

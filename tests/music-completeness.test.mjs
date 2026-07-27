@@ -17,7 +17,7 @@ describe.skipIf(!existsSync(DATA))('music.json completeness', () => {
     }
   });
 
-  it('has exactly 2 albums, each with required fields and well-formed URLs', () => {
+  it('has at least 2 albums, each with required fields and well-formed URLs', () => {
     expect(music.albums.length).toBeGreaterThanOrEqual(2);
     for (const a of music.albums) {
       expect(typeof a.title).toBe('string');
