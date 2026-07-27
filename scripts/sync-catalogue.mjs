@@ -11,3 +11,33 @@ export function buildDeveloperToken({ teamId, keyId, privateKey, now = Date.now(
     { key: crypto.createPrivateKey(privateKey), dsaEncoding: 'ieee-p1363' });
   return `${signingInput}.${b64url(signature)}`;
 }
+
+export function extractAppleId(url) {
+  const m = /\/(\d+)(?:[/?#]|$)/.exec(String(url || ''));
+  return m ? m[1] : null;
+}
+
+export function videoNumber(title) {
+  const m = /52\.(\d{2})/.exec(String(title || ''));
+  return m ? `52.${m[1]}` : null;
+}
+
+export function fillArtwork(template, size = 1200) {
+  return String(template || '').replace('{w}', String(size)).replace('{h}', String(size));
+}
+
+export function youtubeMapByNumber(items) {
+  const byNum = {};
+  const titleFor = {};
+  for (const it of items || []) {
+    const title = it?.snippet?.title || '';
+    const id = it?.snippet?.resourceId?.videoId || it?.contentDetails?.videoId;
+    const n = videoNumber(title);
+    if (!n || !id) continue;
+    if (!(n in byNum) || title.length < titleFor[n].length) {
+      byNum[n] = `https://youtube.com/watch?v=${id}`;
+      titleFor[n] = title;
+    }
+  }
+  return byNum;
+}
