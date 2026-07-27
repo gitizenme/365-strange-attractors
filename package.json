@@ -7,7 +7,8 @@
     "build": "vite build && node pipeline/stamp.mjs dist",
     "preview": "vite preview",
     "test": "vitest run",
-    "pipeline": "node pipeline/build.mjs"
+    "pipeline": "node pipeline/build.mjs",
+    "sync:catalogue": "node scripts/sync-catalogue.mjs"
   },
   "dependencies": {
     "three": "^0.185.1"

@@ -162,3 +162,35 @@ export async function runSync({ fetchJson, appleToken, youtubeKey, artistId, upl
   if (!changed) lines.push('Catalogue already up to date. No additions.');
   return { music: next, summary: lines.join('\n') + '\n', changed };
 }
+
+import { readFileSync, writeFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+
+async function fetchJsonReal(url, headers) {
+  const res = await fetch(url, { headers });
+  if (!res.ok) throw new Error(`${res.status} ${res.statusText} for ${url}: ${(await res.text()).slice(0, 300)}`);
+  return res.json();
+}
+
+export async function main() {
+  const { APPLE_MUSIC_PRIVATE_KEY, APPLE_MUSIC_KEY_ID, APPLE_MUSIC_TEAM_ID, YOUTUBE_API_KEY } = process.env;
+  for (const [k, v] of Object.entries({ APPLE_MUSIC_PRIVATE_KEY, APPLE_MUSIC_KEY_ID, APPLE_MUSIC_TEAM_ID, YOUTUBE_API_KEY }))
+    if (!v) throw new Error(`missing required env var ${k}`);
+
+  const appleToken = buildDeveloperToken({
+    teamId: APPLE_MUSIC_TEAM_ID, keyId: APPLE_MUSIC_KEY_ID, privateKey: APPLE_MUSIC_PRIVATE_KEY });
+  const path = 'public/data/music.json';
+  const music = JSON.parse(readFileSync(path, 'utf8'));
+
+  const { music: updated, summary, changed } = await runSync({
+    fetchJson: fetchJsonReal, appleToken, youtubeKey: YOUTUBE_API_KEY,
+    artistId: '424257434', uploadsPlaylistId: 'UU36M5xtxSc9S2bw4NgSM_zA', music });
+
+  writeFileSync('sync-summary.md', summary);
+  if (changed) writeFileSync(path, formatMusicJson(updated));
+  console.log(summary);
+}
+
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  main().catch((e) => { console.error(e); process.exit(1); });
+}
