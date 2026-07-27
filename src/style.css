@@ -105,7 +105,7 @@ html, body { height: 100%; background: #06070a; color: #cfd3dc; font-family: Geo
    override that drops it in hide-static mode has to follow it. */
 .piece.hide-static .piece-backdrop { background: transparent; }
 
-#brightness-slider { position: absolute; bottom: 22px; right: 140px; width: 130px; height: 24px;
+#brightness-slider { position: absolute; bottom: 22px; right: 164px; width: 130px; height: 24px;
   accent-color: #cfd3dc; cursor: pointer; display: none; background: rgba(20,24,32,0.7);
   border: 1px solid #333a48; border-radius: 16px; padding: 0 10px; }
 

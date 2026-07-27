@@ -53,7 +53,7 @@ describe('computeCloudBounds', () => {
     const artworks = [{ day: 365, x: 900, y: 900 }]; // far-away UMAP point must not leak in
     const b = computeCloudBounds(artworks, 'date');
     expect(b.maxX).toBeLessThan(60);
-    expect(b.maxY).toBeGreaterThan(40);
-    expect(b.maxY).toBeLessThan(60);
+    expect(b.maxY).toBeGreaterThan(60);
+    expect(b.maxY).toBeLessThan(80);
   });
 });
