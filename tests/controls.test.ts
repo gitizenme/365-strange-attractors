@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest';
-import { stepInertia, clampCamera, zoomToward, fitCamera, Controls } from '../src/controls';
+import { describe, it, expect, vi } from 'vitest';
+import { stepInertia, clampCamera, zoomToward, fitCamera, pinchFactor, Controls } from '../src/controls';
 
 describe('stepInertia', () => {
   it('decays velocity exponentially and snaps to zero', () => {
@@ -75,6 +75,92 @@ describe('fitCamera', () => {
     expect(Number.isFinite(fit.z)).toBe(true);
     expect(fit.x).toBe(5);
     expect(fit.y).toBe(5);
+  });
+});
+
+describe('pinchFactor', () => {
+  it('zooms in when fingers spread apart (factor < 1, same sign as wheel zoom)', () => {
+    expect(pinchFactor(20, 40)).toBeCloseTo(0.5); // separation doubled → halve camera z
+  });
+  it('zooms out when fingers come together (factor > 1)', () => {
+    expect(pinchFactor(40, 20)).toBeCloseTo(2);
+  });
+  it('is a no-op (1) when either distance is absent/zero', () => {
+    expect(pinchFactor(0, 30)).toBe(1);
+    expect(pinchFactor(30, 0)).toBe(1);
+  });
+});
+
+describe('Controls two-finger pinch', () => {
+  // A canvas stub that actually records listeners so we can drive pointer events through the
+  // real handler code — the flyTo tests above only need a no-op canvas, but pinch behaviour
+  // lives entirely in the event handlers.
+  const eventCanvas = () => {
+    const listeners: Record<string, ((e: unknown) => void)[]> = {};
+    return {
+      clientWidth: 800, clientHeight: 450,
+      setPointerCapture() {}, releasePointerCapture() {},
+      addEventListener(type: string, cb: (e: unknown) => void) { (listeners[type] ||= []).push(cb); },
+      fire(type: string, e: Record<string, number>) { (listeners[type] || []).forEach(cb => cb(e)); },
+    };
+  };
+  const camera = () => ({
+    position: { x: 0, y: 0, z: 100, set(x: number, y: number, z: number) { this.x = x; this.y = y; this.z = z; } },
+    fov: 50,
+  });
+  // Wide bounds so clamping never masks the pan/zoom being measured.
+  const bounds = { minX: -1000, maxX: 1000, minY: -1000, maxY: 1000 };
+
+  it('two fingers spreading zooms the camera in, not pans it', () => {
+    const cam = camera();
+    const canvas = eventCanvas();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    new Controls(canvas as any, cam as any, bounds);
+    canvas.fire('pointerdown', { pointerId: 1, clientX: 380, clientY: 225 });
+    canvas.fire('pointerdown', { pointerId: 2, clientX: 420, clientY: 225 }); // baseline sep = 40
+    canvas.fire('pointermove', { pointerId: 2, clientX: 480, clientY: 225 }); // sep 100 → spread
+
+    expect(cam.position.z).toBeLessThan(100);            // zoomed in
+    expect(Math.abs(cam.position.x)).toBeLessThan(5);    // not a runaway pan
+    expect(Math.abs(cam.position.y)).toBeLessThan(5);
+  });
+
+  it('two fingers coming together zooms the camera out', () => {
+    const cam = camera();
+    const canvas = eventCanvas();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    new Controls(canvas as any, cam as any, bounds);
+    canvas.fire('pointerdown', { pointerId: 1, clientX: 300, clientY: 225 });
+    canvas.fire('pointerdown', { pointerId: 2, clientX: 500, clientY: 225 }); // baseline sep = 200
+    canvas.fire('pointermove', { pointerId: 2, clientX: 420, clientY: 225 }); // sep 120 → pinch in
+
+    expect(cam.position.z).toBeGreaterThan(100);
+  });
+
+  it('does not fire a tap when a pinch ends', () => {
+    const cam = camera();
+    const canvas = eventCanvas();
+    const onTap = vi.fn();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const c = new Controls(canvas as any, cam as any, bounds);
+    c.onTap = onTap;
+    canvas.fire('pointerdown', { pointerId: 1, clientX: 400, clientY: 225 });
+    canvas.fire('pointerdown', { pointerId: 2, clientX: 420, clientY: 225 });
+    canvas.fire('pointerup', { pointerId: 2, clientX: 420, clientY: 225 });
+    canvas.fire('pointerup', { pointerId: 1, clientX: 400, clientY: 225 });
+    expect(onTap).not.toHaveBeenCalled();
+  });
+
+  it('still fires a tap for a clean single-finger tap', () => {
+    const cam = camera();
+    const canvas = eventCanvas();
+    const onTap = vi.fn();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const c = new Controls(canvas as any, cam as any, bounds);
+    c.onTap = onTap;
+    canvas.fire('pointerdown', { pointerId: 1, clientX: 400, clientY: 225 });
+    canvas.fire('pointerup', { pointerId: 1, clientX: 400, clientY: 225 });
+    expect(onTap).toHaveBeenCalledTimes(1);
   });
 });
 
