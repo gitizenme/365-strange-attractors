@@ -4,7 +4,11 @@ import { join } from 'node:path';
 
 const SIZES = [2000, 1024, 256];
 const COLS = 20;
-const TILE_FULL = 128;
+// 192px is the largest tile that keeps the 365-tile atlas within the universally-safe 4096px
+// texture limit (20 cols x 192 = 3840 wide, 19 rows x 192 = 3648 tall). At 128px a thumbnail
+// upscaled ~3x when zoomed in on the constellation and read soft; 192px is ~2.25x the pixels.
+// Going to 256 would overflow 4096 on GPUs that only guarantee that minimum -> black sprites.
+const TILE_FULL = 192;
 const TILE_SMALL = 32;
 
 export async function makeDerivatives(srcPath, slug, outRoot) {
@@ -32,7 +36,7 @@ async function compositeAtlas(items, tile, outPath, quality) {
 }
 
 // Two tiers from the same tile-compositing loop: a tiny 32px-tile atlas that loads first (whole
-// constellation as soft glowing forms in a few hundred ms, even on cellular) and a 128px-tile
+// constellation as soft glowing forms in a few hundred ms, even on cellular) and a 192px-tile
 // atlas that swaps in when ready (src/constellation.ts owns the swap). No PNG atlas is written
 // any more -- the single 12.5 MB atlas.png this replaces was the single biggest blocker to first
 // paint (sprites stayed invisible until it fully arrived).
@@ -41,11 +45,11 @@ export async function buildAtlas(items, outRoot) {
   items.forEach((it, i) => { index[it.slug] = i; });
   mkdirSync(join(outRoot, 'images'), { recursive: true });
   mkdirSync(join(outRoot, 'data'), { recursive: true });
-  const rows = await compositeAtlas(items, TILE_FULL, join(outRoot, 'images', 'atlas-128.webp'), 78);
+  const rows = await compositeAtlas(items, TILE_FULL, join(outRoot, 'images', 'atlas-192.webp'), 78);
   await compositeAtlas(items, TILE_SMALL, join(outRoot, 'images', 'atlas-32.webp'), 85);
   const manifest = {
     tile: TILE_FULL, cols: COLS, rows, index,
-    files: { small: '/images/atlas-32.webp', full: '/images/atlas-128.webp' },
+    files: { small: '/images/atlas-32.webp', full: '/images/atlas-192.webp' },
   };
   writeFileSync(join(outRoot, 'data', 'atlas.json'), JSON.stringify(manifest));
   return manifest;
