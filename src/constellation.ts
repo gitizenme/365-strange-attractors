@@ -15,7 +15,7 @@ export function atlasUv(atlas: Atlas, slug: string) {
 // the edge. Two distinct consumers need two distinct shapes:
 // - 'union' (default): UMAP layout (a.x, a.y) ∪ time-spiral layout (spiralPosition(a.day)) — the
 //   PAN CLAMP. Unioned so switching to Time mode never strands sprites outside the pannable range;
-//   the spiral's radius (up to 75, see spiralPosition) doesn't always agree with the UMAP extent.
+//   the spiral's radius (up to 83, see spiralPosition) doesn't always agree with the UMAP extent.
 // - 'likeness' / 'date': one layout only — the FRAMING fit. Fitting the union instead visibly
 //   breaks the ~85%-fill goal: the real archive's UMAP layout is ~92x52 world units while the
 //   union is ~106x102 (near-square), so on a wide viewport fitCamera(union) is height-limited and

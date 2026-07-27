@@ -31,12 +31,12 @@ describe('buildAtlas', () => {
     const items = [{ slug: '001-rose', srcPath: src }, { slug: '002-x', srcPath: src }];
     const manifest = await buildAtlas(items, dir);
     expect(manifest).toEqual({
-      tile: 128, cols: 20, rows: 1, index: { '001-rose': 0, '002-x': 1 },
-      files: { small: '/images/atlas-32.webp', full: '/images/atlas-128.webp' },
+      tile: 192, cols: 20, rows: 1, index: { '001-rose': 0, '002-x': 1 },
+      files: { small: '/images/atlas-32.webp', full: '/images/atlas-192.webp' },
     });
-    const full = await sharp(join(dir, 'images', 'atlas-128.webp')).metadata();
-    expect(full.width).toBe(20 * 128);
-    expect(full.height).toBe(128);
+    const full = await sharp(join(dir, 'images', 'atlas-192.webp')).metadata();
+    expect(full.width).toBe(20 * 192);
+    expect(full.height).toBe(192);
     const small = await sharp(join(dir, 'images', 'atlas-32.webp')).metadata();
     expect(small.width).toBe(20 * 32);
     expect(small.height).toBe(32);
