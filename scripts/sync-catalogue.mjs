@@ -70,3 +70,21 @@ export function buildSingleEntry(appleAlbum) {
     artworkUrl: fillArtwork(a.artwork.url), appleMusicUrl: a.url,
   };
 }
+
+export function reconcile(existing, incoming, keyFn) {
+  const existingKeys = new Set(existing.map(keyFn).filter(Boolean));
+  const incomingKeys = new Set(incoming.map(keyFn).filter(Boolean));
+  const additions = incoming.filter((x) => keyFn(x) && !existingKeys.has(keyFn(x)));
+  const orphans = existing.filter((x) => keyFn(x) && !incomingKeys.has(keyFn(x)));
+  return { additions, orphans };
+}
+
+export function sortVideos(videos) {
+  return [...videos].sort((a, b) => {
+    const na = videoNumber(a.title), nb = videoNumber(b.title);
+    if (na && nb) return na < nb ? -1 : na > nb ? 1 : 0;
+    if (na) return -1;
+    if (nb) return 1;
+    return 0;
+  });
+}

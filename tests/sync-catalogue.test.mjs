@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import crypto from 'node:crypto';
-import { buildDeveloperToken, extractAppleId, videoNumber, fillArtwork, youtubeMapByNumber, buildVideoEntry, buildAlbumEntry, buildSingleEntry } from '../scripts/sync-catalogue.mjs';
+import { buildDeveloperToken, extractAppleId, videoNumber, fillArtwork, youtubeMapByNumber, buildVideoEntry, buildAlbumEntry, buildSingleEntry, reconcile, sortVideos } from '../scripts/sync-catalogue.mjs';
 
 const b64urlToJson = (s) => JSON.parse(Buffer.from(s, 'base64url').toString('utf8'));
 
@@ -91,5 +91,24 @@ describe('buildAlbumEntry / buildSingleEntry', () => {
     const s = buildSingleEntry(appleAlbum);
     expect(s.type).toBe('single');
     expect('trackCount' in s).toBe(false);
+  });
+});
+
+const key = (e) => extractAppleId(e.appleMusicUrl);
+
+describe('reconcile', () => {
+  it('splits additions and orphans by key', () => {
+    const existing = [{ appleMusicUrl: 'a/1' }, { appleMusicUrl: 'a/2' }];
+    const incoming = [{ appleMusicUrl: 'a/2' }, { appleMusicUrl: 'a/3' }];
+    const { additions, orphans } = reconcile(existing, incoming, key);
+    expect(additions.map(key)).toEqual(['3']);
+    expect(orphans.map(key)).toEqual(['1']);
+  });
+});
+
+describe('sortVideos', () => {
+  it('orders by 52.NN ascending', () => {
+    const out = sortVideos([{ title: '52.03' }, { title: '52.01' }, { title: '52.02' }]);
+    expect(out.map((v) => v.title)).toEqual(['52.01', '52.02', '52.03']);
   });
 });
