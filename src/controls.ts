@@ -42,6 +42,15 @@ export function zoomToward(cam: { x: number; y: number; z: number }, target: { x
   };
 }
 
+// Pinch-to-zoom factor from the change in finger separation, in the same sign convention as
+// wheel zoom (factor < 1 zooms IN): spreading the fingers apart (curDist > prevDist) shrinks
+// camera z. Returns 1 (no-op) when either distance is absent/zero so the first move of a pinch —
+// before a baseline separation exists — never divides by zero or snaps the camera.
+export function pinchFactor(prevDist: number, curDist: number): number {
+  if (prevDist <= 0 || curDist <= 0) return 1;
+  return prevDist / curDist;
+}
+
 export function worldPerPixel(camera: THREE.PerspectiveCamera, viewportHeight: number): number {
   const h = 2 * camera.position.z * Math.tan((camera.fov * Math.PI) / 360);
   return h / viewportHeight;
@@ -55,6 +64,14 @@ export class Controls {
   private dragging = false;
   private moved = 0;
   private last = { x: 0, y: 0 };
+  // Active pointers, keyed by pointerId — one entry per finger/mouse down. Single entry = pan;
+  // two entries = pinch-zoom. Tracked here (not just `last`) because pinch needs BOTH fingers'
+  // live positions to measure their separation.
+  private pointers = new Map<number, { x: number; y: number }>();
+  private pinchDist = 0;
+  // True once a gesture has had >= 2 pointers down, so lifting the last finger after a pinch
+  // isn't misread as a tap-select. Reset when all pointers are up.
+  private multiTouch = false;
   private flying = false;
   private reduced: boolean;
   private ac = new AbortController();
@@ -71,12 +88,40 @@ export class Controls {
       if (!this.enabled) return;
       this.cancelFlight();
       canvas.setPointerCapture(e.pointerId);
-      this.dragging = true; this.moved = 0; this.vel = { x: 0, y: 0 };
-      this.last = { x: e.clientX, y: e.clientY };
+      this.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (this.pointers.size >= 2) {
+        // Second finger down → this gesture is a pinch, not a pan. Abandon any pan-in-progress
+        // and seed the baseline separation the first pinch-move will measure against.
+        this.multiTouch = true;
+        this.dragging = false;
+        this.vel = { x: 0, y: 0 };
+        this.pinchDist = this.currentPinchDist();
+      } else {
+        this.dragging = true; this.moved = 0; this.vel = { x: 0, y: 0 };
+        this.last = { x: e.clientX, y: e.clientY };
+      }
     }, { signal: s });
     canvas.addEventListener('pointermove', e => {
-      if (!this.enabled) return;
-      if (!this.dragging || this.flying) return;
+      if (!this.enabled || this.flying) return;
+      const p = this.pointers.get(e.pointerId);
+      if (!p) return;
+      p.x = e.clientX; p.y = e.clientY;
+      if (this.pointers.size >= 2) {
+        // Pinch-zoom toward the midpoint of the two fingers — the same zoomToward+clamp math
+        // wheel zoom uses, so touch and trackpad/wheel share one zoom model.
+        const dist = this.currentPinchDist();
+        const factor = pinchFactor(this.pinchDist, dist);
+        if (factor !== 1) {
+          this.userMoved = true;
+          const mid = this.pinchMidpoint();
+          const t = this.screenToWorld(mid.x, mid.y);
+          const np = zoomToward(this.camera.position, t, factor);
+          Object.assign(this.camera.position, clampCamera(np, this.bounds, 4, this.fitZ() * 1.1));
+        }
+        this.pinchDist = dist;
+        return;
+      }
+      if (!this.dragging) return;
       this.userMoved = true;
       const wpp = worldPerPixel(this.camera, canvas.clientHeight);
       const dx = (e.clientX - this.last.x), dy = (e.clientY - this.last.y);
@@ -87,11 +132,33 @@ export class Controls {
       this.last = { x: e.clientX, y: e.clientY };
       this.clamp();
     }, { signal: s });
-    canvas.addEventListener('pointerup', e => {
+    const endPointer = (e: PointerEvent) => {
       if (!this.enabled) return;
-      this.dragging = false;
-      if (this.moved < 5) { this.vel = { x: 0, y: 0 }; this.onTap?.(e.clientX, e.clientY); }
-    }, { signal: s });
+      const had = this.pointers.delete(e.pointerId);
+      if (this.pointers.size === 1) {
+        // Pinch dropped to one finger: hand control back to pan from the finger that remains,
+        // with no positional jump and no spurious tap when it eventually lifts.
+        const rem = this.pointers.values().next().value!;
+        this.last = { x: rem.x, y: rem.y };
+        this.dragging = true; this.moved = 5; this.vel = { x: 0, y: 0 };
+        return;
+      }
+      if (this.pointers.size === 0) {
+        this.dragging = false;
+        if (had && !this.multiTouch && this.moved < 5) { this.vel = { x: 0, y: 0 }; this.onTap?.(e.clientX, e.clientY); }
+        this.multiTouch = false;
+      }
+    };
+    canvas.addEventListener('pointerup', endPointer, { signal: s });
+    canvas.addEventListener('pointercancel', endPointer, { signal: s });
+    // iOS Safari fires these WebKit-only gesture events for its visual-viewport (whole-window)
+    // pinch-zoom. touch-action:none on #gl stops the standard path, but preventing these too is
+    // the belt-and-suspenders that keeps a two-finger pinch zooming the constellation (handled via
+    // the pointer events above) instead of the Safari window. They carry no zoom info we use — the
+    // pointer handlers already do the zoom — so we only cancel their default.
+    for (const type of ['gesturestart', 'gesturechange', 'gestureend']) {
+      canvas.addEventListener(type, (e: Event) => { if (this.enabled) e.preventDefault(); }, { signal: s, passive: false });
+    }
     canvas.addEventListener('wheel', e => {
       if (!this.enabled) return;
       e.preventDefault();
@@ -108,6 +175,19 @@ export class Controls {
   setEnabled(enabled: boolean): void { this.enabled = enabled; }
 
   hasUserMoved(): boolean { return this.userMoved; }
+
+  private currentPinchDist(): number {
+    const it = this.pointers.values();
+    const a = it.next().value, b = it.next().value;
+    if (!a || !b) return 0;
+    return Math.hypot(a.x - b.x, a.y - b.y);
+  }
+
+  private pinchMidpoint(): { x: number; y: number } {
+    const it = this.pointers.values();
+    const a = it.next().value!, b = it.next().value!;
+    return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+  }
 
   private fitZ(): number {
     const aspect = this.canvas.clientWidth / this.canvas.clientHeight;
