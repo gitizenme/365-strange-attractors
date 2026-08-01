@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import crypto from 'node:crypto';
-import { buildDeveloperToken, extractAppleId, videoNumber, fillArtwork, youtubeMapByNumber, buildVideoEntry, buildAlbumEntry, buildSingleEntry, reconcile, sortVideos, formatMusicJson, runSync } from '../scripts/sync-catalogue.mjs';
+import { buildDeveloperToken, extractAppleId, videoNumber, fillArtwork, youtubeMapByNumber, buildVideoEntry, buildAlbumEntry, buildSingleEntry, reconcile, sortVideos, formatMusicJson, coverageReport, runSync } from '../scripts/sync-catalogue.mjs';
 
 const b64urlToJson = (s) => JSON.parse(Buffer.from(s, 'base64url').toString('utf8'));
 
@@ -129,6 +129,20 @@ function makeFetch(routes) {
   };
 }
 
+describe('coverageReport', () => {
+  it('reports received/curated/matched/unmatched per collection', () => {
+    const lines = coverageReport([{ label: 'Albums', received: 2, curated: 2, orphans: 0 }]);
+    expect(lines).toEqual(['- Albums: Apple returned 2, music.json has 2, matched 2, unmatched 0']);
+  });
+
+  it('flags a collection where Apple returned fewer than music.json holds', () => {
+    const [thin] = coverageReport([{ label: 'Videos', received: 9, curated: 51, orphans: 42 }]);
+    const [full] = coverageReport([{ label: 'Albums', received: 2, curated: 2, orphans: 0 }]);
+    expect(thin).toContain('⚠');       // under-read is called out, not buried in numbers
+    expect(full).not.toContain('⚠');
+  });
+});
+
 describe('runSync', () => {
   it('adds new Apple entries, matches youtube, reports orphans and youtube-only', async () => {
     const music = {
@@ -223,5 +237,47 @@ describe('runSync', () => {
 
     expect(res.changed).toBe(false);
     expect(res.summary).not.toContain('New albums'); // summary must agree with the deduped data, not the raw reconcile
+  });
+
+  it('attributes coverage and orphans per collection when Apple under-reads the video catalogue', async () => {
+    // Mirrors run 30673843138: Apple returns 1 of the 2 curated videos, albums/singles complete.
+    const music = {
+      artist: { name: 'Chaos of Zen' },
+      albums: [{ title: 'A1', appleMusicUrl: 'https://music.apple.com/us/album/a/100' }],
+      singles: [{ title: 'S1', type: 'single', appleMusicUrl: 'https://music.apple.com/us/album/s/200' }],
+      musicVideos: [
+        { title: '52.01', type: 'video', appleMusicUrl: 'https://music.apple.com/us/music-video/52-01/300' },
+        { title: '52.02', type: 'video', appleMusicUrl: 'https://music.apple.com/us/music-video/52-02/301' },
+      ],
+    };
+    const art = { url: 'https://img/{w}x{h}bb.jpg' };
+    const fetchJson = makeFetch([
+      ['/artists/424257434?views', { data: [{ views: {
+        'full-albums': { data: [
+          { attributes: { name: 'A1', url: 'https://music.apple.com/us/album/a/100', artwork: art, releaseDate: '2014', trackCount: 5 } },
+        ] },
+        singles: { data: [
+          { attributes: { name: 'S1', url: 'https://music.apple.com/us/album/s/200', artwork: art, releaseDate: '2021' } },
+        ] },
+      } }] }],
+      ['/music-videos', { data: [
+        { attributes: { name: '52.01', url: 'https://music.apple.com/us/music-video/52-01/300', artwork: art, releaseDate: '2022-01-01' } },
+      ] }],
+      ['playlistItems', { items: [] }],
+    ]);
+
+    const res = await runSync({ fetchJson, appleToken: 't', youtubeKey: 'k',
+      artistId: '424257434', uploadsPlaylistId: 'UU36M5xtxSc9S2bw4NgSM_zA', music });
+
+    expect(res.changed).toBe(false);
+    // the shortfall is attributed to videos, and albums/singles are shown as complete
+    expect(res.summary).toContain('- ⚠ Videos: Apple returned 1, music.json has 2, matched 1, unmatched 1');
+    expect(res.summary).toContain('- Albums: Apple returned 1, music.json has 1, matched 1, unmatched 0');
+    expect(res.summary).toContain('- Singles: Apple returned 1, music.json has 1, matched 1, unmatched 0');
+    // orphans are attributed to their collection rather than pooled into one list
+    expect(res.summary).toContain('Videos in music.json but not in the Apple API');
+    expect(res.summary).not.toContain('Albums in music.json but not in the Apple API');
+    // page counts distinguish "one short page" from "pagination stopped early"
+    expect(res.summary).toContain('music-videos: 1 page(s)');
   });
 });

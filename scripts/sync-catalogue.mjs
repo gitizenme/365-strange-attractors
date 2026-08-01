@@ -96,25 +96,38 @@ export function formatMusicJson(obj) {
 async function fetchAppleAll(fetchJson, startUrl, headers) {
   let url = startUrl;
   const out = [];
+  let pages = 0;
   while (url) {
     const page = await fetchJson(url, headers);
     out.push(...(page.data || []));
+    pages += 1;
     url = page.next ? `https://api.music.apple.com${page.next}` : null;
   }
-  return out;
+  return { items: out, pages };
 }
 
 async function fetchYouTubeAll(fetchJson, playlistId, key) {
   const out = [];
   let token = '';
+  let pages = 0;
   do {
     const url = `https://www.googleapis.com/youtube/v3/playlistItems?part=snippet,contentDetails`
       + `&playlistId=${playlistId}&maxResults=50&key=${key}${token ? `&pageToken=${token}` : ''}`;
     const page = await fetchJson(url);
     out.push(...(page.items || []));
+    pages += 1;
     token = page.nextPageToken || '';
   } while (token);
-  return out;
+  return { items: out, pages };
+}
+
+// Diagnostic only — never gates an addition. `orphans` counts curated entries the Apple
+// response didn't account for, so a non-zero value means the sync is reading less than the
+// catalogue actually holds and cannot be trusted to spot a new release in what it can't see.
+export function coverageReport(sections) {
+  return sections.map(({ label, received, curated, orphans }) =>
+    `- ${orphans > 0 ? '⚠ ' : ''}${label}: Apple returned ${received}, `
+    + `music.json has ${curated}, matched ${curated - orphans}, unmatched ${orphans}`);
 }
 
 const appleKey = (e) => extractAppleId(e.appleMusicUrl);
@@ -126,9 +139,9 @@ export async function runSync({ fetchJson, appleToken, youtubeKey, artistId, upl
   const views = artist.data?.[0]?.views || {};
   const appleAlbums = views['full-albums']?.data || [];
   const appleSingles = views.singles?.data || [];
-  const appleVideos = await fetchAppleAll(fetchJson,
+  const { items: appleVideos, pages: videoPages } = await fetchAppleAll(fetchJson,
     `https://api.music.apple.com/v1/catalog/us/artists/${artistId}/music-videos?limit=100`, headers);
-  const ytItems = await fetchYouTubeAll(fetchJson, uploadsPlaylistId, youtubeKey);
+  const { items: ytItems, pages: ytPages } = await fetchYouTubeAll(fetchJson, uploadsPlaylistId, youtubeKey);
   const ytMap = youtubeMapByNumber(ytItems);
 
   const incVideos = appleVideos.map((v) => buildVideoEntry(v, ytMap));
@@ -164,8 +177,18 @@ export async function runSync({ fetchJson, appleToken, youtubeKey, artistId, upl
   list('New singles', freshSingles, (s) => s.title);
   list('New videos', freshVideos, (v) => v.title);
   list('On YouTube, awaiting Apple Music', ytOnly.map((n) => ({ n })), (x) => x.n);
-  list('In music.json but not in the Apple API — review', [...albs.orphans, ...sngs.orphans, ...vids.orphans], (e) => e.title);
+  list('Albums in music.json but not in the Apple API — review', albs.orphans, (e) => e.title);
+  list('Singles in music.json but not in the Apple API — review', sngs.orphans, (e) => e.title);
+  list('Videos in music.json but not in the Apple API — review', vids.orphans, (e) => e.title);
   if (!changed) lines.push('Catalogue already up to date. No additions.');
+
+  const keyed = (arr) => arr.filter((e) => appleKey(e)).length;
+  lines.push('', '### API coverage (diagnostic)', '', ...coverageReport([
+    { label: 'Albums', received: appleAlbums.length, curated: keyed(music.albums), orphans: albs.orphans.length },
+    { label: 'Singles', received: appleSingles.length, curated: keyed(music.singles), orphans: sngs.orphans.length },
+    { label: 'Videos', received: appleVideos.length, curated: keyed(music.musicVideos), orphans: vids.orphans.length },
+  ]), '',
+  `Fetched — artist views: 1 request; music-videos: ${videoPages} page(s); YouTube playlistItems: ${ytPages} page(s), ${ytItems.length} item(s).`);
   return { music: next, summary: lines.join('\n') + '\n', changed };
 }
 
