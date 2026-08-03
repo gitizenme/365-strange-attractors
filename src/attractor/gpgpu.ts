@@ -342,6 +342,12 @@ export class LiveAttractor {
   }
 
   dispose(): void {
+    // Detach before freeing: piece.ts adds `points` to a scene that is created ONCE and reused
+    // for every day (see its `this.live_` assignment), so a dispose that only frees GPU
+    // resources left the object in the graph -- one dead THREE.Points accumulating per day
+    // navigation, each still walked and re-uploaded every frame because disposing a geometry
+    // frees its buffers without clearing the attribute data that regenerates them.
+    this.points.removeFromParent();
     this.points.geometry.dispose();
     this.material.dispose();
     this.gpuCompute.dispose();
