@@ -75,12 +75,40 @@ const HORN_OF_RINGS = crlf([
   '0.753020 0.000000 0.000000 0.000000', '0.753020 0.000000 0.000000 0.000000', '0.753020 -0.781832 0.000000 0.623490', '0.142857',
 ]);
 
-// declares 2 transforms but the second block is malformed (only 3 numbers on its first row)
-// -- simulates the ~4 non-contiguous corpus files whose transformCount exceeds the readable run.
-const NON_CONTIGUOUS = crlf([
+// The transform section ENDS here rather than being corrupt: line 6 over-declares, and where
+// the 3rd block would start the file has already moved on to the 2-float per-transform control
+// pairs. Every real .par ends its transform run this way -- the only question is whether the
+// declared count agrees. See BALL_OF_CONFUSION for the real-corpus version.
+const SECTION_ENDS_EARLY = crlf([
   ...HEADER('7 1', 2),
   '0.9 0 0 0', '0 0.9 0 0', '0 0 0.9 0', '1.0',
-  '0.9 0 0', // malformed: 3 numbers, not 4
+  '0.9 0', // not a transform row: the control-pair section has begun
+]);
+
+// Genuinely corrupt: the block STARTS (a full 4-float row) and then breaks mid-way. Distinct
+// from a section end, and must stay unclean -- a half-read matrix is not a transform.
+const TORN_BLOCK = crlf([
+  ...HEADER('7 1', 2),
+  '0.9 0 0 0', '0 0.9 0 0', '0 0 0.9 0', '1.0',
+  '0.5 0 0 0', '0 0.5 0', // 4-float row starts a block, then a 3-float row tears it
+]);
+
+// project/087/087_Ball_of_Confusion.par -- REAL corpus file, one of the 4 parse failures.
+// Header line 6 declares "14 4" (baseShape 14, count 4) but the file carries exactly 2
+// transform blocks; line 29 begins the 2-float control pairs. Trusting the declared 4 made
+// the parser run off the end of the section and discard the whole day.
+const BALL_OF_CONFUSION = crlf([
+  ...HEADER('7 1', 4),
+  '0.533084 0.081912 -0.500271 0.388048',
+  '0.240711 0.589851 0.252220 -0.724688',
+  '0.065763 0.794944 0.138636 -0.072908',
+  '0.191162',
+  '0.491941 -0.239579 0.388977 -0.022525',
+  '0.556814 0.175903 -0.434053 -0.054598',
+  '0.379380 -0.522380 -0.688242 0.045606',
+  '0.523255',
+  '0.988990 0.343832',   // control pairs begin -- end of the transform section
+  '0.988990 -0.544258',
 ]);
 
 // single transform, weight irrelevant (only one map is ever selected) -- unaddressable: one
@@ -134,10 +162,40 @@ describe('parsePar', () => {
     expect(p.transforms[1].t).toEqual([0.351327, 0.225130, -0.275473]);
   });
 
-  it('flags a non-contiguous transform run as unclean', () => {
-    const p = parsePar(NON_CONTIGUOUS);
+  it('treats an over-declared count as a clean section end, keeping the blocks that are there', () => {
+    const p = parsePar(SECTION_ENDS_EARLY);
+    expect(p.declaredCount).toBe(2);
+    expect(p.transforms).toHaveLength(1);
+    expect(p.clean).toBe(true); // the section ended; nothing was corrupt
+  });
+
+  it('still flags a block torn open mid-way as unclean', () => {
+    const p = parsePar(TORN_BLOCK);
     expect(p.clean).toBe(false);
-    expect(p.transforms).toHaveLength(1); // the one well-formed block before the break
+    expect(p.transforms).toHaveLength(1); // only the block completed before the tear
+  });
+
+  it('recovers day 87, whose header over-declares 4 transforms for a 2-block file', () => {
+    const p = parsePar(BALL_OF_CONFUSION);
+    expect(p.declaredCount).toBe(4);
+    expect(p.clean).toBe(true);
+    expect(p.transforms).toHaveLength(2);
+    expect(p.transforms[0]).toEqual({
+      m: [
+        [0.533084, 0.388048, 0.252220],
+        [0.081912, 0.240711, -0.724688],
+        [-0.500271, 0.589851, 0.065763],
+      ],
+      t: [0.794944, 0.138636, -0.072908],
+      w: 0.191162,
+    });
+    expect(p.transforms[1].w).toBe(0.523255);
+  });
+
+  it('does not mistake the control-pair section for transform data', () => {
+    // 0.988990/0.343832 appear on line 29 as a control pair; they must not reach any transform.
+    const { transforms } = parsePar(BALL_OF_CONFUSION);
+    expect(transforms.flatMap((t) => [...t.m.flat(), ...t.t, t.w])).not.toContain(0.343832);
   });
 
   it('parses a clean single-transform file (addressability is decided downstream)', () => {
@@ -271,7 +329,7 @@ describe('buildIncendiaEntry', () => {
     },
     readFileSync(path) {
       if (path.endsWith('194_Sky_Shell.par')) return SKY_SHELL;
-      if (path.endsWith('999_Broken.par')) return NON_CONTIGUOUS;
+      if (path.endsWith('999_Broken.par')) return TORN_BLOCK;
       if (path.endsWith('998_Single.par')) return SINGLE_TRANSFORM;
       throw new Error(`unexpected file ${path}`);
     },
@@ -321,7 +379,7 @@ describe('applyIncendia', () => {
     },
     readFileSync(path) {
       if (path.endsWith('194_Sky_Shell.par')) return SKY_SHELL;
-      if (path.endsWith('999_Broken.par')) return NON_CONTIGUOUS;
+      if (path.endsWith('999_Broken.par')) return TORN_BLOCK;
       throw new Error(`unexpected file ${path}`);
     },
   };
