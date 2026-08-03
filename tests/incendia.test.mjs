@@ -619,3 +619,118 @@ describe('buildIncendiaEntry (single-transform / incendia_flow path)', () => {
     expect(outcome.entry).toBeNull();
   });
 });
+
+// ---------- under-declared recovery (real corpus shapes) ----------
+
+// N control pairs, the section that follows the transform run. Real files always carry
+// exactly 4*blocks + 2 of them -- verified across all 280 corpus days -- which is what makes
+// the pair count an independent witness to the true block count.
+const PAIRS = (n) => Array.from({ length: n }, (_, i) => `0.9${i % 10} -0.5${i % 10}`);
+
+// project/121/121_Circular_Logic.par -- REAL file. Line 6 declares "19 2" but the file carries
+// FOUR transform blocks and 18 control pairs (= 4*4 + 2, corroborating 4, not 2). Read as 2 it
+// is implausible (D 0.87) and the day ships static-only; read as 4 it is a genuine fractal
+// (D 1.32) and goes live. Block 2 is expansive (Frobenius 2.17), which is why the truncated
+// 2-map read degenerates.
+const CIRCULAR_LOGIC = crlf([
+  ...HEADER('4 1', 2),
+  '0.114634 0.000000 0.000000 0.000000',
+  '0.500000 0.000000 0.000000 0.000000',
+  '0.500000 1.870000 0.000000 -0.612579',
+  '1.000000',
+  '3.695487 0.000000 0.000000 0.000000',
+  '0.500000 0.000000 0.000000 0.000000',
+  '0.500000 1.870000 0.000000 0.000000',
+  '1.000000',
+  '-0.333333 -0.000000 0.000000 0.000000',
+  '-0.333333 0.000000 0.000000 0.000000',
+  '0.333333 0.500000 0.000000 -0.500000',
+  '1.000000',
+  '-0.333333 0.000000 0.000000 0.000000',
+  '0.000000 0.333333 0.000000 -0.333333',
+  '0.000000 -0.500000 0.000000 0.000000',
+  '1.000000',
+  ...PAIRS(18),
+]);
+
+// project/096/096_Virus.par -- REAL file. Declares "16 1" but carries 2 blocks and 10 pairs
+// (= 4*2 + 2). Read as declared it is a live incendia_flow day and SHIPS THAT WAY today; read
+// as 2 it is a Cantor dust that fails the gate. Recovery must not touch it.
+const VIRUS = crlf([
+  ...HEADER('4 1', 1),
+  '0.250000 0.000000 0.000000 0.000000',
+  '0.250000 0.000000 0.000000 0.000000',
+  '0.250000 -0.304838 0.000000 -0.131662',
+  '0.500000',
+  '0.250000 0.000000 0.000000 0.000000',
+  '0.250000 0.000000 0.000000 0.000000',
+  '0.250000 -0.237439 0.000000 0.074062',
+  '0.500000',
+  ...PAIRS(10),
+]);
+
+describe('parsePar structural scan + control-pair corroboration', () => {
+  it('reports the full structural block run alongside the declared-count read', () => {
+    const p = parsePar(CIRCULAR_LOGIC);
+    expect(p.declaredCount).toBe(2);
+    expect(p.transforms).toHaveLength(2);        // unchanged: bounded by the declared count
+    expect(p.allTransforms).toHaveLength(4);     // what the file actually carries
+  });
+
+  it('corroborates the structural count from the control-pair section (4n + 2)', () => {
+    expect(parsePar(CIRCULAR_LOGIC).corroborated).toBe(true);  // 18 pairs == 4*4 + 2
+    expect(parsePar(VIRUS).corroborated).toBe(true);           // 10 pairs == 4*2 + 2
+  });
+
+  it('withholds corroboration when the pair count does not fit the invariant', () => {
+    const bad = crlf([...HEADER('4 1', 1),
+      '0.25 0 0 0', '0.25 0 0 0', '0.25 -0.3 0 -0.13', '0.5',
+      '0.25 0 0 0', '0.25 0 0 0', '0.25 -0.23 0 0.07', '0.5',
+      ...PAIRS(7)]); // 7 != 4*2 + 2
+    expect(parsePar(bad).corroborated).toBe(false);
+  });
+});
+
+describe('buildIncendiaEntry under-declared recovery', () => {
+  const fsFor = (name, content) => ({
+    readdirSync: () => [name],
+    readFileSync: () => content,
+  });
+
+  it('recovers a day the declared count renders implausible but the structural count does not', () => {
+    const outcome = buildIncendiaEntry(121, '121-circular-logic', '/archive', fsFor('121_Circular_Logic.par', CIRCULAR_LOGIC));
+    expect(outcome.status).toBe('live');
+    expect(outcome.entry.system).toBe('incendia_ifs');
+    expect(outcome.entry.matrices).toBe(4);   // all four, not the declared two
+    expect(outcome.recovered).toBe(true);
+  });
+
+  it('never re-reads a day whose declared count already yields a live entry', () => {
+    // Virus ships as incendia_flow. The structural count would make it a gate-failing dust,
+    // so recovery must not fire -- this is the guard that keeps 61 live days from regressing.
+    const outcome = buildIncendiaEntry(96, '096-virus', '/archive', fsFor('096_Virus.par', VIRUS));
+    expect(outcome.status).toBe('live');
+    expect(outcome.entry.system).toBe('incendia_flow');
+    expect(outcome.entry.matrices).toBe(1);
+    expect(outcome.recovered).toBeUndefined();
+  });
+
+  it('leaves an over-declared day alone (nothing extra to recover)', () => {
+    const outcome = buildIncendiaEntry(87, '087-ball-of-confusion', '/archive', fsFor('087_Ball_of_Confusion.par', BALL_OF_CONFUSION));
+    expect(outcome.status).toBe('live');
+    expect(outcome.entry.matrices).toBe(2);
+    expect(outcome.recovered).toBeUndefined();
+  });
+});
+
+describe('recovery is gated on individual visual confirmation', () => {
+  const fsFor = (name, content) => ({ readdirSync: () => [name], readFileSync: () => content });
+
+  it('does not recover an unconfirmed day even when the structural read would pass the gate', () => {
+    // Same bytes as day 121, presented as day 263 -- which renders as a ray-starburst and is
+    // deliberately held back. Proves the allowlist, not the gate, is what admits a recovery.
+    const outcome = buildIncendiaEntry(263, '263-dodecatentacle', '/archive', fsFor('263_x.par', CIRCULAR_LOGIC));
+    expect(outcome.status).toBe('implausible');
+    expect(outcome.entry).toBe(null);
+  });
+});
