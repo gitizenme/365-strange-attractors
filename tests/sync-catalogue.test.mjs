@@ -239,6 +239,57 @@ describe('runSync', () => {
     expect(res.summary).not.toContain('New albums'); // summary must agree with the deduped data, not the raw reconcile
   });
 
+  it('follows the artist views next cursor so singles past the 10-item view cap are seen', async () => {
+    // Reproduces run 30773815403: views.singles caps at 10 and advertises a next href.
+    const music = { artist: {}, albums: [], singles: [], musicVideos: [] };
+    const art = { url: 'https://img/{w}x{h}bb.jpg' };
+    const single = (n) => ({ attributes: { name: `52.${String(n).padStart(2, '0')}`, url: `https://music.apple.com/us/album/s/${200 + n}`, artwork: art, releaseDate: '2021' } });
+    const fetchJson = makeFetch([
+      ['view/singles?offset=20', { data: [single(21)] }],                                                  // last page, no next
+      ['view/singles?offset=10', { data: Array.from({ length: 10 }, (_, i) => single(11 + i)), next: '/v1/catalog/us/artists/424257434/view/singles?offset=20' }],
+      ['/artists/424257434?views', { data: [{ views: {
+        'full-albums': { data: [] },
+        singles: {
+          data: Array.from({ length: 10 }, (_, i) => single(1 + i)),
+          next: '/v1/catalog/us/artists/424257434/view/singles?offset=10',
+        },
+      } }] }],
+      ['/music-videos', { data: [] }],
+      ['playlistItems', { items: [] }],
+    ]);
+
+    const res = await runSync({ fetchJson, appleToken: 't', youtubeKey: 'k',
+      artistId: '424257434', uploadsPlaylistId: 'UU36M5xtxSc9S2bw4NgSM_zA', music });
+
+    expect(res.music.singles).toHaveLength(21);                       // 10 + 10 + 1, not just the first page
+    expect(res.summary).toContain('- Singles: Apple returned 21');    // and no under-read warning
+    expect(res.summary).toContain('singles: 3 page(s)');
+  });
+
+  it('follows the next cursor for full-albums too, so a third album is not silently truncated', async () => {
+    const music = { artist: {}, albums: [], singles: [], musicVideos: [] };
+    const art = { url: 'https://img/{w}x{h}bb.jpg' };
+    const album = (n) => ({ attributes: { name: `A${n}`, url: `https://music.apple.com/us/album/a/${100 + n}`, artwork: art, releaseDate: '2014', trackCount: 5 } });
+    const fetchJson = makeFetch([
+      ['view/full-albums?offset=10', { data: [album(11)] }],
+      ['/artists/424257434?views', { data: [{ views: {
+        'full-albums': {
+          data: Array.from({ length: 10 }, (_, i) => album(1 + i)),
+          next: '/v1/catalog/us/artists/424257434/view/full-albums?offset=10',
+        },
+        singles: { data: [] },
+      } }] }],
+      ['/music-videos', { data: [] }],
+      ['playlistItems', { items: [] }],
+    ]);
+
+    const res = await runSync({ fetchJson, appleToken: 't', youtubeKey: 'k',
+      artistId: '424257434', uploadsPlaylistId: 'UU36M5xtxSc9S2bw4NgSM_zA', music });
+
+    expect(res.music.albums).toHaveLength(11);
+    expect(res.summary).toContain('- Albums: Apple returned 11');
+  });
+
   it('attributes coverage and orphans per collection when Apple under-reads the video catalogue', async () => {
     // Mirrors run 30673843138: Apple returns 1 of the 2 curated videos, albums/singles complete.
     const music = {
