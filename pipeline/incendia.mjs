@@ -41,6 +41,13 @@ export function parsePar(content) {
   let clean = declaredCount > 0;
   for (let b = 0; b < declaredCount; b++) {
     const r0 = numLine(raw[i]), r1 = numLine(raw[i + 1]), r2 = numLine(raw[i + 2]), w = numLine(raw[i + 3]);
+    // A block that never starts -- r0 is not a 4-float row -- means the transform SECTION has
+    // ended and the 2-float per-transform control pairs have begun. That is how every real
+    // .par terminates its run; it is not corruption, and the blocks already read are good.
+    // declaredCount (header line 6, field 2) is an upper bound, not a reliable count: 4 corpus
+    // days over-declare it (87/129/190/320 -- this was the "4 parse failures"), and 67 more
+    // UNDER-declare it. See the under-read note on buildIncendiaEntry before changing this.
+    if (b > 0 && r0?.length !== 4) break;
     if (r0?.length === 4 && r1?.length === 4 && r2?.length === 4 && w?.length === 1) {
       const flat = [...r0, ...r1, ...r2];
       transforms.push({

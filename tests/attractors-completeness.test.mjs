@@ -26,6 +26,18 @@ describe.skipIf(!existsSync(DATA))('attractors.json completeness', () => {
      'regress below the pre-2c Chaoscope-only baseline)', () => {
     expect(attractors.filter(a => a.system !== 'static-only').length).toBeGreaterThanOrEqual(85);
   });
+  it('days 87 and 129 stay live — their headers over-declare the transform count, and trusting it discarded them', () => {
+    // Both .par files declare more transform blocks (4 and 3) than they carry (2 each); the
+    // parser used to run off the end of the transform section and drop the day entirely.
+    // Days 190 and 320 have the same header defect but are legitimately gated out as
+    // implausible once parsed, so they are deliberately NOT pinned here.
+    for (const day of [87, 129]) {
+      const a = attractors[day - 1];
+      expect(a.day).toBe(day);
+      expect(a.system).toBe('incendia_ifs');
+      expect(a.matrices).toBe(2);
+    }
+  });
   it('every incendia_ifs or incendia_flow entry carries a matrices count consistent with its stride-13 params', () => {
     for (const a of attractors) {
       if (a.system !== 'incendia_ifs' && a.system !== 'incendia_flow') continue;
