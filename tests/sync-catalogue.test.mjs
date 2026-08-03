@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import crypto from 'node:crypto';
-import { buildDeveloperToken, extractAppleId, videoNumber, fillArtwork, youtubeMapByNumber, buildVideoEntry, buildAlbumEntry, buildSingleEntry, reconcile, sortVideos, formatMusicJson, coverageReport, runSync } from '../scripts/sync-catalogue.mjs';
+import { buildDeveloperToken, extractAppleId, videoNumber, fillArtwork, youtubeMapByNumber, buildVideoEntry, buildAlbumEntry, buildSingleEntry, reconcile, sortVideos, formatMusicJson, coverageReport, runSync, parseRetryAfter, makeFetchJson } from '../scripts/sync-catalogue.mjs';
 
 const b64urlToJson = (s) => JSON.parse(Buffer.from(s, 'base64url').toString('utf8'));
 
@@ -330,5 +330,119 @@ describe('runSync', () => {
     expect(res.summary).not.toContain('Albums in music.json but not in the Apple API');
     // page counts distinguish "one short page" from "pagination stopped early"
     expect(res.summary).toContain('music-videos: 1 page(s)');
+  });
+});
+
+describe('parseRetryAfter', () => {
+  it('reads a delta-seconds value', () => {
+    expect(parseRetryAfter('120', 1_700_000_000_000)).toBe(120_000);
+  });
+
+  it('reads an HTTP-date value as a delay relative to now', () => {
+    const now = Date.parse('2026-08-03T00:00:00Z');
+    expect(parseRetryAfter('Mon, 03 Aug 2026 00:00:30 GMT', now)).toBe(30_000);
+  });
+
+  it('clamps an already-past HTTP-date to zero rather than going negative', () => {
+    const now = Date.parse('2026-08-03T00:01:00Z');
+    expect(parseRetryAfter('Mon, 03 Aug 2026 00:00:30 GMT', now)).toBe(0);
+  });
+
+  it('returns null for a missing or unparseable value', () => {
+    expect(parseRetryAfter(undefined, 0)).toBeNull();
+    expect(parseRetryAfter('', 0)).toBeNull();
+    expect(parseRetryAfter('soon', 0)).toBeNull();
+  });
+});
+
+describe('makeFetchJson retry/backoff', () => {
+  // Minimal Response stand-in: only what fetchJson touches.
+  const res = (status, { body = '', retryAfter, json } = {}) => ({
+    ok: status >= 200 && status < 300,
+    status,
+    statusText: String(status),
+    headers: { get: (h) => (h.toLowerCase() === 'retry-after' ? retryAfter : undefined) },
+    text: async () => body,
+    json: async () => json,
+  });
+
+  const harness = (responses, opts = {}) => {
+    const slept = [];
+    const calls = [];
+    const fetchImpl = async (url) => { calls.push(url); return responses[calls.length - 1]; };
+    const fetchJson = makeFetchJson({
+      fetchImpl, sleep: async (ms) => { slept.push(ms); },
+      now: () => 1_700_000_000_000, log: () => {}, ...opts,
+    });
+    return { fetchJson, slept, calls };
+  };
+
+  it('retries a 429 and returns the eventual success', async () => {
+    const { fetchJson, slept, calls } = harness([
+      res(429, { body: 'API capacity exceeded' }),
+      res(200, { json: { data: [1] } }),
+    ]);
+    await expect(fetchJson('https://api.music.apple.com/v1/x')).resolves.toEqual({ data: [1] });
+    expect(calls).toHaveLength(2);
+    expect(slept).toEqual([2000]);          // first backoff step, not an instant retry
+  });
+
+  it('backs off exponentially across repeated 429s', async () => {
+    const { fetchJson, slept } = harness([
+      res(429), res(429), res(429), res(200, { json: { ok: true } }),
+    ]);
+    await fetchJson('https://api.music.apple.com/v1/x');
+    expect(slept).toEqual([2000, 4000, 8000]);
+  });
+
+  it('honors a Retry-After header in preference to the backoff schedule', async () => {
+    const { fetchJson, slept } = harness([
+      res(429, { retryAfter: '45' }),
+      res(200, { json: {} }),
+    ]);
+    await fetchJson('https://api.music.apple.com/v1/x');
+    expect(slept).toEqual([45_000]);
+  });
+
+  it('caps an absurd Retry-After so a run cannot hang for hours', async () => {
+    const { fetchJson, slept } = harness([
+      res(429, { retryAfter: '86400' }),
+      res(200, { json: {} }),
+    ]);
+    await fetchJson('https://api.music.apple.com/v1/x');
+    expect(slept).toEqual([60_000]);
+  });
+
+  it('retries 5xx as transient too', async () => {
+    const { fetchJson, calls } = harness([res(503), res(200, { json: {} })]);
+    await fetchJson('https://api.music.apple.com/v1/x');
+    expect(calls).toHaveLength(2);
+  });
+
+  it('does not retry a 401 — a bad token will never fix itself', async () => {
+    const { fetchJson, slept, calls } = harness([res(401, { body: 'bad token' }), res(200, { json: {} })]);
+    await expect(fetchJson('https://api.music.apple.com/v1/x')).rejects.toThrow(/401/);
+    expect(calls).toHaveLength(1);
+    expect(slept).toEqual([]);
+  });
+
+  it('gives up after maxAttempts and throws the last status', async () => {
+    const { fetchJson, calls } = harness([res(429), res(429), res(429)], { maxAttempts: 3 });
+    await expect(fetchJson('https://api.music.apple.com/v1/x')).rejects.toThrow(/429/);
+    expect(calls).toHaveLength(3);
+  });
+
+  it('keeps the query string out of thrown errors so the YouTube key cannot leak', async () => {
+    const { fetchJson } = harness([res(403, { body: 'quota' })]);
+    await expect(fetchJson('https://www.googleapis.com/youtube/v3/playlistItems?key=SECRETKEY'))
+      .rejects.toThrow(/^403 403 for https:\/\/www\.googleapis\.com\/youtube\/v3\/playlistItems: quota$/);
+  });
+
+  it('keeps the query string out of retry log lines too', async () => {
+    const logged = [];
+    const { fetchJson } = harness([res(429), res(200, { json: {} })], { log: (m) => logged.push(m) });
+    await fetchJson('https://www.googleapis.com/youtube/v3/playlistItems?key=SECRETKEY');
+    expect(logged.join('\n')).not.toContain('SECRETKEY');
+    expect(logged.join('\n')).toContain('429');
   });
 });

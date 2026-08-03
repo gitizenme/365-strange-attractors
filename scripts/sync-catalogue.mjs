@@ -212,11 +212,42 @@ export async function runSync({ fetchJson, appleToken, youtubeKey, artistId, upl
 import { readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
-async function fetchJsonReal(url, headers) {
-  const res = await fetch(url, { headers });
-  if (!res.ok) throw new Error(`${res.status} ${res.statusText} for ${url.split('?')[0]}: ${(await res.text()).slice(0, 300)}`);
-  return res.json();
+// Apple answers 429 "API capacity exceeded" under load, and a bare throw there aborts a whole
+// sync over a condition that clears on its own. 429 and 5xx are transient; 4xx is not — a bad
+// token or a wrong artist id will never fix itself, so retrying those only slows the failure down.
+const isTransient = (status) => status === 429 || status >= 500;
+
+export function parseRetryAfter(value, nowMs) {
+  if (!value) return null;
+  const secs = Number(value);
+  if (value.trim() !== '' && Number.isFinite(secs)) return Math.max(0, secs * 1000);
+  const when = Date.parse(value);
+  return Number.isNaN(when) ? null : Math.max(0, when - nowMs);
 }
+
+export function makeFetchJson({
+  fetchImpl = fetch, sleep = (ms) => new Promise((r) => setTimeout(r, ms)),
+  now = () => Date.now(), log = console.warn,
+  maxAttempts = 6, baseDelayMs = 2000, maxDelayMs = 60_000,
+} = {}) {
+  return async function fetchJson(url, headers) {
+    // Query strings carry the YouTube API key, so every message built here is path-only.
+    const safeUrl = url.split('?')[0];
+    for (let attempt = 1; ; attempt += 1) {
+      const res = await fetchImpl(url, { headers });
+      if (res.ok) return res.json();
+      const body = (await res.text()).slice(0, 300);
+      if (!isTransient(res.status) || attempt >= maxAttempts)
+        throw new Error(`${res.status} ${res.statusText} for ${safeUrl}: ${body}`);
+      const backoff = Math.min(baseDelayMs * 2 ** (attempt - 1), maxDelayMs);
+      const waitMs = Math.min(parseRetryAfter(res.headers?.get?.('retry-after'), now()) ?? backoff, maxDelayMs);
+      log(`${res.status} for ${safeUrl} — attempt ${attempt}/${maxAttempts}, retrying in ${Math.round(waitMs / 1000)}s`);
+      await sleep(waitMs);
+    }
+  };
+}
+
+const fetchJsonReal = makeFetchJson();
 
 export async function main() {
   const { APPLE_MUSIC_PRIVATE_KEY, APPLE_MUSIC_KEY_ID, APPLE_MUSIC_TEAM_ID, YOUTUBE_API_KEY } = process.env;
