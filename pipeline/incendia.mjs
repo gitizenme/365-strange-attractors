@@ -65,7 +65,31 @@ export function parsePar(content) {
       break;
     }
   }
-  return { gen, baseShape, declaredCount, transforms, clean };
+  // The declared count is unreliable in BOTH directions (4 corpus days over-declare, 67
+  // under-declare), so also scan the transform run structurally, ignoring it entirely.
+  const allTransforms = [];
+  for (let j = HEADER_LINES; ; j += 4) {
+    const r0 = numLine(raw[j]), r1 = numLine(raw[j + 1]), r2 = numLine(raw[j + 2]), w = numLine(raw[j + 3]);
+    if (!(r0?.length === 4 && r1?.length === 4 && r2?.length === 4 && w?.length === 1)) break;
+    const flat = [...r0, ...r1, ...r2];
+    allTransforms.push({
+      m: [[flat[0], flat[3], flat[6]], [flat[1], flat[4], flat[7]], [flat[2], flat[5], flat[8]]],
+      t: [flat[9], flat[10], flat[11]],
+      w: w[0],
+    });
+  }
+
+  // Independent witness to the true block count: the per-transform control-pair section that
+  // follows the run holds exactly 4*blocks + 2 two-float lines. Verified to hold across all 280
+  // corpus days (blocks 1->6, 2->10, 3->14, 4->18, 9->38, 21->86 pairs), and it does NOT fit the
+  // declared count on the 71 days where the two disagree. Only trust allTransforms when this
+  // corroborates it -- one unreliable field should not be replaced by one unchecked scan.
+  let pairIdx = HEADER_LINES + 4 * allTransforms.length;
+  let controlPairs = 0;
+  while (numLine(raw[pairIdx])?.length === 2) { controlPairs++; pairIdx++; }
+  const corroborated = allTransforms.length > 0 && controlPairs === 4 * allTransforms.length + 2;
+
+  return { gen, baseShape, declaredCount, transforms, clean, allTransforms, controlPairs, corroborated };
 }
 
 // Composes parsed transforms into the live stride-13 [M(9 row-major), t(3), w(1)] format
@@ -298,6 +322,26 @@ export function classifyFlow(transform) {
 
 // ---------- pipeline entry points ----------
 
+// Days whose structural re-read (see the recovery block in buildIncendiaEntry) has been
+// individually rendered and eyeballed -- the same standard the minD recalibration used, and
+// necessary here because the plausibility gate CANNOT make this call: all six candidates pass
+// it comfortably (D 1.32-1.58, iso 984-4553, coverage 0.027-0.121), yet two of them render as
+// degenerate ray-starbursts rather than attractors.
+//
+// Confirmed good: 121 (orthogonal comb), 182 (layered fronds), 268 and 275 (clean Sierpinski
+// gaskets). All four sit at a 0.000-0.001% chaos-game divergence-rescue rate, matching
+// known-good days 86/87.
+//
+// Held back, both rendering as rays radiating from a point:
+//   263 -- 0.705% rescue rate, 17x the worst shipping day, and mean-contractivity -0.0167
+//          against a live-population ceiling of -0.0905. Degenerate by the numbers too.
+//   310 -- starburst in ALL THREE projection planes, but with no numeric signature at all:
+//          0.018% rescue and comfortably contractive. Excluded on inspection alone. Note day
+//          365 already ships at a HIGHER 0.040% rescue rate, so rate is not a usable threshold
+//          here -- 365 renders as a diffuse speckle cloud, not rays.
+// Recovering either is a one-line change once confirmed by eye in the app.
+const RECOVERY_CONFIRMED = new Set([121, 182, 268, 275]);
+
 // Returns null only when the day has no .par file at all. Otherwise always returns
 // {gen, status, entry}, entry non-null only when status is 'live' -- this lets applyIncendia
 // report per-generation parsed/plausible counts uniformly (spec: "the metric we drive down").
@@ -308,21 +352,44 @@ export function buildIncendiaEntry(day, slug, archiveRoot, fs) {
   if (!chosen) return null;
   const p = parsePar(fs.readFileSync(join(dir, chosen), 'utf8'));
   if (!p.clean) return { gen: p.gen, status: 'parse-failed', entry: null };
-  if (p.transforms.length === 1) {
-    const flow = classifyFlow(p.transforms[0]);
+
+  const first = attempt(day, slug, p, p.transforms);
+  if (first.status === 'live') return first;
+  // Recovery, second pass only: the declared count under-reads 67 days. Retrying with the
+  // corroborated structural run recovers 6 of them (declared 2, actually 4) that are
+  // implausible when truncated -- e.g. day 121, whose 2nd block is expansive, so the
+  // truncated read degenerates while the full 4-map system is a genuine fractal.
+  //
+  // This runs ONLY when the declared read failed, which is what makes it safe: the other 61
+  // under-declared days already produce a live incendia_flow entry on the first pass and are
+  // returned above, untouched. Reading them structurally would make them 2-map Cantor dusts
+  // that fail the gate, costing 60 currently-shipping days. Doing that honestly needs
+  // base-shape rendering (Incendia iterates a solid, not a point) -- a separate phase.
+  if (RECOVERY_CONFIRMED.has(day) && p.corroborated && p.allTransforms.length > p.transforms.length) {
+    const second = attempt(day, slug, p, p.allTransforms);
+    if (second.status === 'live') return { ...second, recovered: true };
+  }
+  return first;
+}
+
+// One classification pass over a specific transform run. Split out of buildIncendiaEntry so the
+// declared-count read and the corroborated structural read go through identical logic.
+function attempt(day, slug, p, transforms) {
+  if (transforms.length === 1) {
+    const flow = classifyFlow(transforms[0]);
     if (!flow.plausible) return { gen: p.gen, status: 'flow-implausible', entry: null };
     // Deliberately NOT applying pickFlatAxisSwap/swapTransformAxis here -- see the design spec's
     // finding: that correction's detection method compares axis spans across one settled
     // trajectory, meaningful for a multi-transform attractor's genuine spread but not for a
     // single-transform trajectory that converges to one point on every axis simultaneously.
-    const entry = { day, slug, system: 'incendia_flow', matrices: 1, params: composeIncendiaBlocks(p.transforms) };
+    const entry = { day, slug, system: 'incendia_flow', matrices: 1, params: composeIncendiaBlocks(transforms) };
     return { gen: p.gen, status: 'live', entry };
   }
-  const cls = classify(p.transforms);
+  const cls = classify(transforms);
   if (!cls.plausible) return { gen: p.gen, status: 'implausible', entry: null };
-  const flatAxis = pickFlatAxisSwap(p.transforms);
-  const transforms = flatAxis === null ? p.transforms : swapTransformAxis(p.transforms, flatAxis);
-  const entry = { day, slug, system: 'incendia_ifs', matrices: transforms.length, params: composeIncendiaBlocks(transforms) };
+  const flatAxis = pickFlatAxisSwap(transforms);
+  const oriented = flatAxis === null ? transforms : swapTransformAxis(transforms, flatAxis);
+  const entry = { day, slug, system: 'incendia_ifs', matrices: oriented.length, params: composeIncendiaBlocks(oriented) };
   return { gen: p.gen, status: 'live', entry };
 }
 
