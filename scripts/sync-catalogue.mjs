@@ -106,6 +106,22 @@ async function fetchAppleAll(fetchJson, startUrl, headers) {
   return { items: out, pages };
 }
 
+// An artist resource's views are capped (10 items in practice) and advertise the rest behind a
+// `next` href. Read that first page, then follow Apple's own cursor — constructing the view URL
+// ourselves would be a guess, whereas `next` is whatever Apple says it is.
+async function fetchAppleView(fetchJson, view, headers) {
+  const out = [...(view?.data || [])];
+  let pages = 1;
+  let url = view?.next ? `https://api.music.apple.com${view.next}` : null;
+  while (url) {
+    const page = await fetchJson(url, headers);
+    out.push(...(page.data || []));
+    pages += 1;
+    url = page.next ? `https://api.music.apple.com${page.next}` : null;
+  }
+  return { items: out, pages };
+}
+
 async function fetchYouTubeAll(fetchJson, playlistId, key) {
   const out = [];
   let token = '';
@@ -137,8 +153,8 @@ export async function runSync({ fetchJson, appleToken, youtubeKey, artistId, upl
   const artist = await fetchJson(
     `https://api.music.apple.com/v1/catalog/us/artists/${artistId}?views=full-albums,singles`, headers);
   const views = artist.data?.[0]?.views || {};
-  const appleAlbums = views['full-albums']?.data || [];
-  const appleSingles = views.singles?.data || [];
+  const { items: appleAlbums, pages: albumPages } = await fetchAppleView(fetchJson, views['full-albums'], headers);
+  const { items: appleSingles, pages: singlePages } = await fetchAppleView(fetchJson, views.singles, headers);
   const { items: appleVideos, pages: videoPages } = await fetchAppleAll(fetchJson,
     `https://api.music.apple.com/v1/catalog/us/artists/${artistId}/music-videos?limit=100`, headers);
   const { items: ytItems, pages: ytPages } = await fetchYouTubeAll(fetchJson, uploadsPlaylistId, youtubeKey);
@@ -188,7 +204,8 @@ export async function runSync({ fetchJson, appleToken, youtubeKey, artistId, upl
     { label: 'Singles', received: appleSingles.length, curated: keyed(music.singles), orphans: sngs.orphans.length },
     { label: 'Videos', received: appleVideos.length, curated: keyed(music.musicVideos), orphans: vids.orphans.length },
   ]), '',
-  `Fetched — artist views: 1 request; music-videos: ${videoPages} page(s); YouTube playlistItems: ${ytPages} page(s), ${ytItems.length} item(s).`);
+  `Fetched — artist views: 1 request, then full-albums: ${albumPages} page(s), singles: ${singlePages} page(s); `
+  + `music-videos: ${videoPages} page(s); YouTube playlistItems: ${ytPages} page(s), ${ytItems.length} item(s).`);
   return { music: next, summary: lines.join('\n') + '\n', changed };
 }
 
