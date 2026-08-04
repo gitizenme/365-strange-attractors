@@ -727,9 +727,10 @@ describe('recovery is gated on individual visual confirmation', () => {
   const fsFor = (name, content) => ({ readdirSync: () => [name], readFileSync: () => content });
 
   it('does not recover an unconfirmed day even when the structural read would pass the gate', () => {
-    // Same bytes as day 121, presented as day 263 -- which renders as a ray-starburst and is
-    // deliberately held back. Proves the allowlist, not the gate, is what admits a recovery.
-    const outcome = buildIncendiaEntry(263, '263-dodecatentacle', '/archive', fsFor('263_x.par', CIRCULAR_LOGIC));
+    // Same bytes as day 121, presented as day 96 -- a day that is not in RECOVERY_CONFIRMED.
+    // Proves the allowlist, not the gate, is what admits a recovery. (263, the original
+    // fixture here, graduated to confirmed on the artist's call 2026-08-03.)
+    const outcome = buildIncendiaEntry(96, '096-virus', '/archive', fsFor('096_x.par', CIRCULAR_LOGIC));
     expect(outcome.status).toBe('implausible');
     expect(outcome.entry).toBe(null);
   });

@@ -332,15 +332,16 @@ export function classifyFlow(transform) {
 // gaskets). All four sit at a 0.000-0.001% chaos-game divergence-rescue rate, matching
 // known-good days 86/87.
 //
-// Held back, both rendering as rays radiating from a point:
+// 263 and 310 both render as rays radiating from a point and were initially held back:
 //   263 -- 0.705% rescue rate, 17x the worst shipping day, and mean-contractivity -0.0167
 //          against a live-population ceiling of -0.0905. Degenerate by the numbers too.
 //   310 -- starburst in ALL THREE projection planes, but with no numeric signature at all:
-//          0.018% rescue and comfortably contractive. Excluded on inspection alone. Note day
-//          365 already ships at a HIGHER 0.040% rescue rate, so rate is not a usable threshold
-//          here -- 365 renders as a diffuse speckle cloud, not rays.
-// Recovering either is a one-line change once confirmed by eye in the app.
-const RECOVERY_CONFIRMED = new Set([121, 182, 268, 275]);
+//          0.018% rescue and comfortably contractive. Note day 365 already ships at a HIGHER
+//          0.040% rescue rate, so rate is not a usable threshold here -- 365 renders as a
+//          diffuse speckle cloud, not rays.
+// Both added 2026-08-03 on the artist's call after a master-vs-render side-by-side review:
+// the starbursts ship as-is unless base-shape rendering someday does these days justice.
+const RECOVERY_CONFIRMED = new Set([121, 182, 263, 268, 275, 310]);
 
 // Returns null only when the day has no .par file at all. Otherwise always returns
 // {gen, status, entry}, entry non-null only when status is 'live' -- this lets applyIncendia
